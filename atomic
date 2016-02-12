@@ -262,6 +262,24 @@ if __name__ == '__main__':
                           help=_("Additional arguments appended to the image "
                                  "install method"))
 
+    # atomic spc-install
+    installspcp = subparser.add_parser(
+        "install-spc", help=_("install a SPC application"),
+        epilog="install a SPC application.")
+    installspcp.set_defaults(func='installspc')
+    add_opt(installspcp)
+    installspcp.add_argument("-n", "--name", dest="name", default=None,
+                             help=_("name of container"))
+    installspcp.add_argument(
+        "--display",
+        default=False,
+        action="store_true",
+        help=_("preview the command that %s would execute") % sys.argv[0])
+    installspcp.add_argument("image", help=_("container image"))
+    installspcp.add_argument("args", nargs=argparse.REMAINDER,
+                             help=_("Additional arguments appended to the image "
+                                    "install method"))
+
     # atomic images
     imagesp = subparser.add_parser(
         "images", help=_("list container images on your system"),
