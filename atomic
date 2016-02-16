@@ -298,6 +298,23 @@ if __name__ == '__main__':
                              help=_("Additional arguments appended to the image "
                                     "uninstall method"))
 
+    # atomic spc-upgrade
+    upgradespcp = subparser.add_parser(
+        "upgrade-spc", help=_("upgrade a SPC application"),
+        epilog="upgrade a SPC application.")
+    upgradespcp.set_defaults(func='upgradespc')
+    add_opt(upgradespcp)
+    upgradespcp.add_argument("-n", "--name", dest="name", default=None,
+                             help=_("name of container"))
+    upgradespcp.add_argument(
+        "--display",
+        default=False,
+        action="store_true",
+        help=_("preview the command that %s would execute") % sys.argv[0])
+    upgradespcp.add_argument("image", help=_("container image"))
+    upgradespcp.add_argument("args", nargs=argparse.REMAINDER,
+                             help=_("Additional arguments appended to the image "
+                                    "upgrade method"))
     # atomic images
     imagesp = subparser.add_parser(
         "images", help=_("list container images on your system"),

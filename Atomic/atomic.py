@@ -755,9 +755,13 @@ class Atomic(object):
 
         os.unlink("/var/spc/%s" % self.image)
         shutil.rmtree("/var/spc/%s.0" % self.image)
+        if os.path.exists("/var/spc/%s.1" % self.image):
+            shutil.rmtree("/var/spc/%s.1" % self.image)
 
-    def installspc(self):
+    def _do_extract_spc(self, deployment, upgrade):
         self._check_if_image_present()
+
+        self.writeOut("Extracting to %s" % ("/var/spc/%s.%d" % (self.image, deployment)))
 
         cmd = self.sub_env_strings(self.gen_cmd(["docker", "run", "-d", "--name", self.image, self.image]))
         self.display(cmd)
@@ -765,7 +769,7 @@ class Atomic(object):
             util.check_call(cmd, env=self.cmd_env())
 
         try:
-            destination = "/var/spc/%s.%d" % (self.image, 0)
+            destination = "/var/spc/%s.%d" % (self.image, deployment)
             rootfs = os.path.join(destination, "rootfs")
             cmd = "docker export '%s' | tar --directory='%s' -xf -" % (self.image, rootfs)
             self.display(cmd)
@@ -791,6 +795,11 @@ class Atomic(object):
             if os.path.exists(unitfile):
                 with open(unitfile, 'r') as infile, open(unitfileout, "w") as outfile:
                     outfile.write(infile.read().replace("$DEST", destination))
+                self.systemctl_command("enable")
+                if upgrade:
+                    self.systemctl_command("restart")
+                else:
+                    self.systemctl_command("start")
 
         finally:
             cmd = self.sub_env_strings(self.gen_cmd(["docker", "rm", "-f", self.image]))
@@ -798,6 +807,22 @@ class Atomic(object):
             if not self.args.display:
                 util.check_call(cmd, env=self.cmd_env())
 
+    def installspc(self):
+        if os.path.exists("/var/spc/%s.0" % self.image):
+            self.writeOut("/var/spc/%s.0 already present" % self.image)
+            return
+
+        return self._do_extract_spc(0, False)
+
+    def upgradespc(self):
+        spc = "/var/spc/%s" % (self.image)
+        next_deployment = 0
+        if os.path.realpath(spc)[-1] == "0":
+            next_deployment = 1
+
+        if os.path.exists("/var/spc/%s.%d" % (self.image, next_deployment)):
+            shutil.rmtree("/var/spc/%s.%d" % (self.image, next_deployment))
+        return self._do_extract_spc(next_deployment, True)
 
     def help(self):
         if os.path.exists("/usr/bin/rpm-ostree"):
