@@ -729,6 +729,33 @@ class Atomic(object):
         if not self.args.display:
             return util.check_call(cmd)
 
+    def systemctl_command(self, cmd):
+        cmd = self.sub_env_strings(self.gen_cmd(["systemctl", cmd, self.image]))
+        self.display(cmd)
+        if not self.args.display:
+            util.check_call(cmd, env=self.cmd_env())
+
+    def uninstallspc(self):
+        spcdir = os.path.realpath("/var/spc/%s" % self.image)
+        service_installed = os.path.exists(os.path.join(spcdir, "rootfs/exports/service.template"))
+        if service_installed:
+            self.systemctl_command("stop")
+            self.systemctl_command("disable")
+
+        if self.args.display:
+            return
+
+        if service_installed:
+            os.unlink("/usr/local/lib/systemd/system/%s.service" % (self.image))
+
+        exportedfs = os.path.join(spcdir, "rootfs/exports/rootfs/")
+        for root, _, files in os.walk(exportedfs):
+            for f in files:
+                os.unlink("/" + os.path.relpath(os.path.join(root, f), exportedfs))
+
+        os.unlink("/var/spc/%s" % self.image)
+        shutil.rmtree("/var/spc/%s.0" % self.image)
+
     def installspc(self):
         self._check_if_image_present()
 

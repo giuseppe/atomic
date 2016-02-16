@@ -280,6 +280,24 @@ if __name__ == '__main__':
                              help=_("Additional arguments appended to the image "
                                     "install method"))
 
+    # atomic spc-uninstall
+    uninstallspcp = subparser.add_parser(
+        "uninstall-spc", help=_("uninstall a SPC application"),
+        epilog="uninstall a SPC application.")
+    uninstallspcp.set_defaults(func='uninstallspc')
+    add_opt(uninstallspcp)
+    uninstallspcp.add_argument("-n", "--name", dest="name", default=None,
+                             help=_("name of container"))
+    uninstallspcp.add_argument(
+        "--display",
+        default=False,
+        action="store_true",
+        help=_("preview the command that %s would execute") % sys.argv[0])
+    uninstallspcp.add_argument("image", help=_("container image"))
+    uninstallspcp.add_argument("args", nargs=argparse.REMAINDER,
+                             help=_("Additional arguments appended to the image "
+                                    "uninstall method"))
+
     # atomic images
     imagesp = subparser.add_parser(
         "images", help=_("list container images on your system"),
