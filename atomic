@@ -469,6 +469,9 @@ if __name__ == '__main__':
                             action="store_true",
                             help=_("remove all containers based on this "
                                    "image"))
+    uninstallp.add_argument("--spc", dest="spc",
+                            action='store_true', default=False,
+                            help=_('uninstall a superprivileged container'))
     uninstallp.add_argument("image", help=_("container image"))
     uninstallp.add_argument("args", nargs=argparse.REMAINDER,
                             help=_("Additional arguments appended to the "
