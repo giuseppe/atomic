@@ -785,13 +785,13 @@ class Atomic(object):
             return util.check_call(cmd)
 
     def systemctl_command(self, cmd):
-        cmd = self.sub_env_strings(self.gen_cmd(["systemctl", cmd, self.image]))
+        cmd = self.sub_env_strings(self.gen_cmd(["systemctl", cmd, self.name]))
         self.display(cmd)
         if not self.args.display:
             util.check_call(cmd, env=self.cmd_env())
 
     def _uninstallspc(self):
-        spcdir = os.path.realpath("/var/spc/%s" % self.image)
+        spcdir = os.path.realpath("/var/spc/%s" % self.name)
         service_installed = os.path.exists(os.path.join(spcdir, "rootfs/exports/service.template"))
         self.args.display = False
         if service_installed:
@@ -799,19 +799,14 @@ class Atomic(object):
             self.systemctl_command("disable")
 
         if service_installed:
-            os.unlink("/usr/local/lib/systemd/system/%s.service" % (self.image))
+            os.unlink("/usr/local/lib/systemd/system/%s.service" % (self.name))
 
-        exportedfs = os.path.join(spcdir, "rootfs/exports/rootfs/")
-        for root, _, files in os.walk(exportedfs):
-            for f in files:
-                os.unlink("/" + os.path.relpath(os.path.join(root, f), exportedfs))
+        os.unlink("/var/spc/%s" % self.name)
+        shutil.rmtree("/var/spc/%s.0" % self.name)
+        if os.path.exists("/var/spc/%s.1" % self.name):
+            shutil.rmtree("/var/spc/%s.1" % self.name)
 
-        os.unlink("/var/spc/%s" % self.image)
-        shutil.rmtree("/var/spc/%s.0" % self.image)
-        if os.path.exists("/var/spc/%s.1" % self.image):
-            shutil.rmtree("/var/spc/%s.1" % self.image)
-
-    def _do_extract_spc(self, deployment, upgrade):
+    def _do_extract_spc(self, deployment, upgrade, skip_restart=False):
         self._check_if_image_present()
 
         self.writeOut("Extracting to %s" % ("/var/spc/%s.%d" % (self.image, deployment)))
@@ -822,7 +817,7 @@ class Atomic(object):
             util.check_call(cmd, env=self.cmd_env())
 
         try:
-            destination = "/var/spc/%s.%d" % (self.image, deployment)
+            destination = "/var/spc/%s.%d" % (self.name, deployment)
             rootfs = os.path.join(destination, "rootfs")
             cmd = "docker export '%s' | tar --directory='%s' -xf -" % (self.image, rootfs)
             self.display(cmd)
@@ -831,12 +826,11 @@ class Atomic(object):
                 subprocess.check_call(cmd, shell=True)
 
             exports = os.path.join(destination, "rootfs/exports")
-            exportfs = os.path.join(exports, "rootfs")
-            if os.path.exists(exportfs):
-                shutil.copy2(exportfs, "/")
 
             if not self.args.display:
-                sym = "/var/spc/%s" % (self.image)
+                with open(os.path.join(destination, "image"), 'w') as image:
+                    image.write(self.image + "\n")
+                sym = "/var/spc/%s" % (self.name)
                 if os.path.exists(sym):
                     os.unlink(sym)
                 os.symlink(destination, sym)
@@ -844,10 +838,11 @@ class Atomic(object):
             shutil.copy2(os.path.join(exports, "config.json"), os.path.join(destination, "config.json"))
 
             unitfile = os.path.join(exports, "service.template")
-            unitfileout = "/usr/local/lib/systemd/system/%s.service" % (self.image)
+            unitfileout = "/usr/local/lib/systemd/system/%s.service" % (self.name)
             if os.path.exists(unitfile):
                 with open(unitfile, 'r') as infile, open(unitfileout, "w") as outfile:
-                    outfile.write(infile.read().replace("$DEST", destination))
+                    data = infile.read().replace("$DESTDIR", destination).replace("$NAME", self.name)
+                    outfile.write(data)
                 self.systemctl_command("enable")
                 if upgrade:
                     self.systemctl_command("restart")
@@ -861,22 +856,32 @@ class Atomic(object):
                 util.check_call(cmd, env=self.cmd_env())
 
     def _installspc(self):
-        if os.path.exists("/var/spc/%s.0" % self.image):
-            self.writeOut("/var/spc/%s.0 already present" % self.image)
+        if os.path.exists("/var/spc/%s.0" % self.name):
+            self.writeOut("/var/spc/%s.0 already present" % self.name)
             return
 
         return self._do_extract_spc(0, False)
 
     def _updatespc(self):
-        spc = "/var/spc/%s" % (self.image)
-        next_deployment = 0
         self.args.display = False
-        if os.path.realpath(spc)[-1] == "0":
-            next_deployment = 1
+        if not self.force:
+            return
+        for i in os.listdir("/var/spc"):
+            if i.endswith(".0") or i.endswith(".1"):
+                continue
+            with open(os.path.join("/var/spc", i, "image"), "r") as image:
+                if image.read().strip("\n") != self.image:
+                    continue
 
-        if os.path.exists("/var/spc/%s.%d" % (self.image, next_deployment)):
-            shutil.rmtree("/var/spc/%s.%d" % (self.image, next_deployment))
-        return self._do_extract_spc(next_deployment, True)
+            spc = os.path.join("/var/spc", i)
+            next_deployment = 0
+            if os.path.realpath(spc).endswith(".0"):
+                next_deployment = 1
+
+            if os.path.exists("/var/spc/%s.%d" % (self.name, next_deployment)):
+                shutil.rmtree("/var/spc/%s.%d" % (self.name, next_deployment))
+
+            self._do_extract_spc(next_deployment, True)
 
     def help(self):
         if os.path.exists("/usr/bin/rpm-ostree"):

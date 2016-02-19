@@ -500,7 +500,8 @@ if __name__ == '__main__':
                          help=_("remove all containers based on this image"))
     updatep.add_argument("--spc", dest="spc",
                           action='store_true', default=False,
-                          help=_('update a superprivileged container'))
+                          help=_("update all the superprivileges containers "
+                                 "that use the image"))
     updatep.add_argument("image", help=_("container image"))
 
     # atomic version
