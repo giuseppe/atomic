@@ -806,7 +806,7 @@ class Atomic(object):
             util.check_call(cmd, env=self.cmd_env())
 
     def _uninstall_oci_container(self):
-        ocidir = os.path.realpath("/var/oci/%s" % self.image)
+        ocidir = os.path.realpath("/var/lib/containers/atomic/%s" % self.name)
         service_installed = os.path.exists(os.path.join(ocidir, "rootfs/exports/service.template"))
         self.args.display = False
         if service_installed:
@@ -816,15 +816,10 @@ class Atomic(object):
         if service_installed:
             os.unlink("/usr/local/lib/systemd/system/%s.service" % (self.name))
 
-        exportedfs = os.path.join(ocidir, "rootfs/exports/rootfs/")
-        for root, _, files in os.walk(exportedfs):
-            for f in files:
-                os.unlink("/" + os.path.relpath(os.path.join(root, f), exportedfs))
-
-        os.unlink("/var/oci/%s" % self.image)
-        shutil.rmtree("/var/oci/%s.0" % self.image)
-        if os.path.exists("/var/oci/%s.1" % self.image):
-            shutil.rmtree("/var/oci/%s.1" % self.image)
+        os.unlink("/var/lib/containers/atomic/%s" % self.name)
+        shutil.rmtree("/var/lib/containers/atomic/%s.0" % self.name)
+        if os.path.exists("/var/lib/containers/atomic/%s.1" % self.name):
+            shutil.rmtree("/var/lib/containers/atomic/%s.1" % self.name)
 
     def _check_oci_docker_image(self, repo, upgrade, image):
 
@@ -895,7 +890,7 @@ class Atomic(object):
         return metadata[key]
 
     def _checkout_oci(self, repo, name, deployment, upgrade):
-        destination = "/var/oci/%s.%d" % (name, deployment)
+        destination = "/var/lib/containers/atomic/%s.%d" % (name, deployment)
         self.writeOut("Extracting to %s" % destination)
 
         rootfs = os.path.join(destination, "rootfs")
@@ -928,7 +923,7 @@ class Atomic(object):
         if not self.args.display:
             with open(os.path.join(destination, "image"), 'w') as image:
                 image.write(self.image + "\n")
-            sym = "/var/oci/%s" % (name)
+            sym = "/var/lib/containers/atomic/%s" % (name)
             if os.path.exists(sym):
                 os.unlink(sym)
             os.symlink(destination, sym)
@@ -954,8 +949,8 @@ class Atomic(object):
 
         self._check_oci_docker_image(repo, False, self.image)
 
-        if os.path.exists("/var/oci/%s.0" % self.name):
-            self.writeOut("/var/oci/%s.0 already present" % self.name)
+        if os.path.exists("/var/lib/containers/atomic/%s.0" % self.name):
+            self.writeOut("/var/lib/containers/atomic/%s.0 already present" % self.name)
             return
 
         return self._checkout_oci(repo, self.name, 0, False)
@@ -972,20 +967,20 @@ class Atomic(object):
         if not self.force:
             return
 
-        for name in os.listdir("/var/oci"):
+        for name in os.listdir("/var/lib/containers/atomic"):
             if name.endswith(".0") or name.endswith(".1"):
                 continue
-            with open(os.path.join("/var/oci", name, "image"), "r") as image:
+            with open(os.path.join("/var/lib/containers/atomic", name, "image"), "r") as image:
                 if image.read().strip("\n") != self.image:
                     continue
 
-            oci = os.path.join("/var/oci", name)
+            oci = os.path.join("/var/lib/containers/atomic", name)
             next_deployment = 0
             if os.path.realpath(oci).endswith(".0"):
                 next_deployment = 1
 
-            if os.path.exists("/var/oci/%s.%d" % (name, next_deployment)):
-                shutil.rmtree("/var/oci/%s.%d" % (name, next_deployment))
+            if os.path.exists("/var/lib/containers/atomic/%s.%d" % (name, next_deployment)):
+                shutil.rmtree("/var/lib/containers/atomic/%s.%d" % (name, next_deployment))
 
             self._checkout_oci(repo, name, next_deployment, True)
 
