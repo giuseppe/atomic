@@ -798,7 +798,7 @@ class Atomic(object):
             util.check_call(cmd, env=self.cmd_env())
 
     def _uninstallspc(self):
-        spcdir = os.path.realpath("/var/spc/%s" % self.name)
+        spcdir = os.path.realpath("/var/lib/containers/atomic/%s" % self.name)
         service_installed = os.path.exists(os.path.join(spcdir, "rootfs/exports/service.template"))
         self.args.display = False
         if service_installed:
@@ -808,10 +808,10 @@ class Atomic(object):
         if service_installed:
             os.unlink("/usr/local/lib/systemd/system/%s.service" % (self.name))
 
-        os.unlink("/var/spc/%s" % self.name)
-        shutil.rmtree("/var/spc/%s.0" % self.name)
-        if os.path.exists("/var/spc/%s.1" % self.name):
-            shutil.rmtree("/var/spc/%s.1" % self.name)
+        os.unlink("/var/lib/containers/atomic/%s" % self.name)
+        shutil.rmtree("/var/lib/containers/atomic/%s.0" % self.name)
+        if os.path.exists("/var/lib/containers/atomic/%s.1" % self.name):
+            shutil.rmtree("/var/lib/containers/atomic/%s.1" % self.name)
 
     def _check_spc_docker_image(self, repo, upgrade, image):
 
@@ -882,7 +882,7 @@ class Atomic(object):
         return metadata[key]
 
     def _checkout_spc(self, repo, name, deployment, upgrade):
-        destination = "/var/spc/%s.%d" % (name, deployment)
+        destination = "/var/lib/containers/atomic/%s.%d" % (name, deployment)
         self.writeOut("Extracting to %s" % destination)
 
         rootfs = os.path.join(destination, "rootfs")
@@ -917,7 +917,7 @@ class Atomic(object):
         if not self.args.display:
             with open(os.path.join(destination, "image"), 'w') as image:
                 image.write(self.image + "\n")
-            sym = "/var/spc/%s" % (name)
+            sym = "/var/lib/containers/atomic/%s" % (name)
             if os.path.exists(sym):
                 os.unlink(sym)
             os.symlink(destination, sym)
@@ -943,8 +943,8 @@ class Atomic(object):
 
         self._check_spc_docker_image(repo, False, self.image)
 
-        if os.path.exists("/var/spc/%s.0" % self.name):
-            self.writeOut("/var/spc/%s.0 already present" % self.name)
+        if os.path.exists("/var/lib/containers/atomic/%s.0" % self.name):
+            self.writeOut("/var/lib/containers/atomic/%s.0 already present" % self.name)
             return
 
         return self._checkout_spc(repo, self.name, 0, False)
@@ -961,20 +961,20 @@ class Atomic(object):
         if not self.force:
             return
 
-        for name in os.listdir("/var/spc"):
+        for name in os.listdir("/var/lib/containers/atomic"):
             if name.endswith(".0") or name.endswith(".1"):
                 continue
-            with open(os.path.join("/var/spc", name, "image"), "r") as image:
+            with open(os.path.join("/var/lib/containers/atomic", name, "image"), "r") as image:
                 if image.read().strip("\n") != self.image:
                     continue
 
-            spc = os.path.join("/var/spc", name)
+            spc = os.path.join("/var/lib/containers/atomic", name)
             next_deployment = 0
             if os.path.realpath(spc).endswith(".0"):
                 next_deployment = 1
 
-            if os.path.exists("/var/spc/%s.%d" % (name, next_deployment)):
-                shutil.rmtree("/var/spc/%s.%d" % (name, next_deployment))
+            if os.path.exists("/var/lib/containers/atomic/%s.%d" % (name, next_deployment)):
+                shutil.rmtree("/var/lib/containers/atomic/%s.%d" % (name, next_deployment))
 
             self._checkout_spc(repo, name, next_deployment, True)
 
