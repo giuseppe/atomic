@@ -15,6 +15,7 @@ import json
 import tarfile
 import stat
 import gi
+from . import registry
 gi.require_version('OSTree', '1.0')
 from gi.repository import Gio, GLib, OSTree
 
@@ -808,69 +809,67 @@ class Atomic(object):
         if service_installed:
             os.unlink("/usr/local/lib/systemd/system/%s.service" % (self.name))
 
-        os.unlink("/var/lib/containers/atomic/%s" % self.name)
-        shutil.rmtree("/var/lib/containers/atomic/%s.0" % self.name)
+        if os.path.exists("/var/lib/containers/atomic/%s" % self.name):
+            os.unlink("/var/lib/containers/atomic/%s" % self.name)
+        if os.path.exists("/var/lib/containers/atomic/%s.0" % self.name):
+            shutil.rmtree("/var/lib/containers/atomic/%s.0" % self.name)
         if os.path.exists("/var/lib/containers/atomic/%s.1" % self.name):
             shutil.rmtree("/var/lib/containers/atomic/%s.1" % self.name)
 
-    def _check_spc_docker_image(self, repo, upgrade, image):
+    def _parse_imagename(self, imagename):
+        sep = imagename.find("/")
+        reg, image = imagename[:sep], imagename[sep + 1:]
+        sep = image.find(":")
+        if sep > 0:
+            return reg, image[:sep], image[sep + 1:]
+        else:
+            return reg, image, "latest"
 
-        current_rev = repo.resolve_rev("dockerimg-%s" % image, True)
-        # FIXME check also `docker images -q --no-trunc output`
+    def _check_spc_docker_image(self, repo, upgrade):
+        regloc, image, tag = self._parse_imagename(self.image)
+        imagebranch = "dockerimg-%s-%s" % (image.replace("sha256:", ""), tag)
+        current_rev = repo.resolve_rev(imagebranch, True)
         if not upgrade and current_rev[1]:
             return False
 
-        #subprocess.check_call(["docker", "pull", self.image])
+        reg = registry.Registry(regloc)
+        reg.connect()
+        manifest = reg.manifest(image, tag)
+        layers = reg.layers(None, None, manifest=manifest)
+        missing_layers = []
+        for i in layers:
+            if not repo.resolve_rev("dockerimg-%s" % i.replace("sha256:", ""), True)[1]:
+                missing_layers.append(i)
+                self.writeOut("Missing layer %s" % i)
 
-        tmpdir = tempfile.mkdtemp()
-        with tempfile.NamedTemporaryFile(mode='w') as tmp_image:
-            save_cmd = ["docker", "save", image]
-            cmd = self.sub_env_strings(self.gen_cmd(save_cmd))
-            self.display(cmd)
-            if not self.args.display:
-                util.check_call(cmd, env=self.cmd_env(), stdout=tmp_image)
-            with tarfile.open(tmp_image.name, 'r') as t:
-                t.extractall(tmpdir)
+        downloaded_layers = reg.fetch_layers(image, missing_layers)
 
-        first_layer = None
-        child = {}
-        refs = {}
         repo.prepare_transaction()
-        for i in os.listdir(tmpdir):
-            d = os.path.join(tmpdir, i)
-            if len(i) == 64 and os.path.isdir(d):
-                with open(os.path.join(d, "json"), 'r') as data:
-                    j = json.loads(data.read())
-                    parent = j.get('parent')
-                    child[parent] = i
-                    if not parent:
-                        first_layer = i
+        for layer, tar in downloaded_layers.items():
+            with tarfile.open(tar.name, 'r') as t:
+                mtree = OSTree.MutableTree()
+                repo.write_archive_to_mtree(Gio.File.new_for_path(t.name), mtree, None, True)
+                root = repo.write_mtree(mtree)[1]
+                metav = GLib.Variant("a{sv}", {'docker.layer': GLib.Variant('s', layer.replace("sha256:", ""))})
+            csum = repo.write_commit(None, "", None, metav, root)[1]
+            repo.transaction_set_ref(None, "dockerimg-%s" % layer.replace("sha256:", ""), csum)
 
-                ref = repo.resolve_rev("dockerimg-%s" % i, True)[1]
-                if ref:
-                    # Layer already present, store its ref and do not do anything
-                    refs[i] = ref
-                    continue
+        # create a dockerimg-$image-$tag branch
+        metadata = GLib.Variant("a{sv}", {'docker.manifest': GLib.Variant('s', manifest)})
+        mtree = OSTree.MutableTree()
+        file_info = Gio.FileInfo()
+        file_info.set_attribute_uint32("unix::uid", 0);
+        file_info.set_attribute_uint32("unix::gid", 0);
+        file_info.set_attribute_uint32("unix::mode", 0o755 | stat.S_IFDIR);
 
-                with tarfile.open(os.path.join(d, "layer.tar"), 'r') as t:
-                    mtree = OSTree.MutableTree()
-                    repo.write_archive_to_mtree(Gio.File.new_for_path(t.name), mtree, None, True)
-                    root = repo.write_mtree(mtree)[1]
-                    if parent:
-                        metav = GLib.Variant("a{sv}", {'docker.parent': GLib.Variant('s', "dockerimg-%s" % parent), 'docker.layer': GLib.Variant('s', i)})
-                    else:
-                        metav = GLib.Variant("a{sv}", {'docker.layer': GLib.Variant('s', i)})
+        dirmeta = OSTree.create_directory_metadata(file_info, None);
+        csum_dirmeta = repo.write_metadata(OSTree.ObjectType.DIR_META, None, dirmeta)[1]
+        mtree.set_metadata_checksum(OSTree.checksum_from_bytes(csum_dirmeta))
 
-                    csum = repo.write_commit(None, "", None, metav, root)[1]
-                    refs[i] = csum
-                    repo.transaction_set_ref(None, "dockerimg-%s" % i, csum)
+        root = repo.write_mtree(mtree)[1]
+        csum = repo.write_commit(None, "", None, metadata, root)[1]
+        repo.transaction_set_ref(None, imagebranch, csum)
 
-        it = first_layer
-        while child.get(it):
-            it = child[it]
-
-        # Point to the last layer
-        repo.transaction_set_ref(None, "dockerimg-%s" % image, refs[it])
         repo.commit_transaction(None)
         return True
 
@@ -882,7 +881,10 @@ class Atomic(object):
         return metadata[key]
 
     def _checkout_spc(self, repo, name, deployment, upgrade):
-        destination = "/var/lib/containers/atomic/%s.%d" % (name, deployment)
+        regloc, image, tag = self._parse_imagename(self.image)
+        imagebranch = "dockerimg-%s-%s" % (image.replace("sha256:", ""), tag)
+
+        destination = "/var/lib/containers/atomic/%s.%d" % (self.name, deployment)
         self.writeOut("Extracting to %s" % destination)
 
         rootfs = os.path.join(destination, "rootfs")
@@ -894,16 +896,15 @@ class Atomic(object):
         os.makedirs(rootfs)
         revs = []
 
-        rev = repo.resolve_rev("dockerimg-%s" % self.image, False)[1]
-        while rev[1]:
-            revs.insert(0, rev)
-            parent = self._get_commit_metadata(repo, rev, 'docker.parent')
-            if not parent:
-                break
-            rev = repo.resolve_rev(parent, False)[1]
+        reg = registry.Registry(regloc)
+        rev = repo.resolve_rev(imagebranch, False)[1]
+
+        manifest = self._get_commit_metadata (repo, rev, "docker.manifest")
+        layers = reg.layers(None, None, manifest=manifest)
 
         rootfs_file = Gio.File.new_for_path(rootfs)
-        for rev in revs:
+        for layer in layers:
+            rev = repo.resolve_rev("dockerimg-%s" % layer.replace("sha256:", ""), False)[1]
             root = repo.read_commit(rev)[1]
             queryinfo = "standard::name,standard::type,standard::size,standard::is-symlink,standard::symlink-target," \
                         "unix::device,unix::inode,unix::mode,unix::uid,unix::gid,unix::rdev"
@@ -941,7 +942,7 @@ class Atomic(object):
         repo = OSTree.Repo.new(Gio.File.new_for_path("/ostree/repo"))
         repo.open(None)
 
-        self._check_spc_docker_image(repo, False, self.image)
+        self._check_spc_docker_image(repo, False)
 
         if os.path.exists("/var/lib/containers/atomic/%s.0" % self.name):
             self.writeOut("/var/lib/containers/atomic/%s.0 already present" % self.name)
@@ -955,7 +956,7 @@ class Atomic(object):
         repo = OSTree.Repo.new(Gio.File.new_for_path("/ostree/repo"))
         repo.open(None)
 
-        if not self._check_spc_docker_image(repo, True, self.image):
+        if not self._check_spc_docker_image(repo, True):
             return False
 
         if not self.force:
