@@ -15,7 +15,6 @@ import json
 import tarfile
 import stat
 import gi
-from . import registry
 gi.require_version('OSTree', '1.0')
 from gi.repository import Gio, GLib, OSTree
 
@@ -825,6 +824,26 @@ class Atomic(object):
         else:
             return reg, image, "latest"
 
+    def _skopeo_get_manifest(self):
+        r = util.subp(['skopeo', 'inspect', '--raw', "docker://%s" % self.image])
+        if r.return_code != 0:
+            raise IOError('Failed to fetch the manifest for: %s.' % self.image)
+        return r.stdout.decode(sys.getdefaultencoding())
+
+    def _skopeo_get_layers(self, layers):
+        temp_dir = tempfile.mkdtemp()
+        args = ['skopeo', 'layers', "docker://%s" % self.image] + layers
+        r = util.subp(args, cwd=temp_dir)
+        if r.return_code != 0:
+            raise IOError('Failed to fetch the manifest for: %s.' % self.image)
+        return temp_dir
+
+    def _get_layers_from_manifest(self, manifest):
+        manifest_json = json.loads(manifest)
+        layers = list(i["blobSum"] for i in manifest_json["fsLayers"])
+        layers.reverse()
+        return layers
+
     def _check_spc_docker_image(self, repo, upgrade):
         regloc, image, tag = self._parse_imagename(self.image)
         imagebranch = "dockerimg-%s-%s" % (image.replace("sha256:", ""), tag)
@@ -832,27 +851,37 @@ class Atomic(object):
         if not upgrade and current_rev[1]:
             return False
 
-        reg = registry.Registry(regloc)
-        reg.connect()
-        manifest = reg.manifest(image, tag)
-        layers = reg.layers(None, None, manifest=manifest)
+        manifest = self._skopeo_get_manifest()
+        layers = self._get_layers_from_manifest(manifest)
         missing_layers = []
         for i in layers:
-            if not repo.resolve_rev("dockerimg-%s" % i.replace("sha256:", ""), True)[1]:
-                missing_layers.append(i)
-                self.writeOut("Missing layer %s" % i)
+            layer = i.replace("sha256:", "")
+            if not repo.resolve_rev("dockerimg-%s" % layer, True)[1]:
+                missing_layers.append(layer)
+                self.writeOut("Missing layer %s" % layer)
 
-        downloaded_layers = reg.fetch_layers(image, missing_layers)
+        if len(missing_layers) == 0:
+            return True
+
+        layers_dir = self._skopeo_get_layers(missing_layers)
+
+        downloaded_layers = {}
+        for root, _, files in os.walk(layers_dir):
+            for f in files:
+                if f.endswith(".tar"):
+                    downloaded_layers[f.replace(".tar", "")] = os.path.join(root, f)
 
         repo.prepare_transaction()
         for layer, tar in downloaded_layers.items():
-            with tarfile.open(tar.name, 'r') as t:
+            if layer not in missing_layers:
+                continue
+            with tarfile.open(tar, 'r') as t:
                 mtree = OSTree.MutableTree()
                 repo.write_archive_to_mtree(Gio.File.new_for_path(t.name), mtree, None, True)
                 root = repo.write_mtree(mtree)[1]
-                metav = GLib.Variant("a{sv}", {'docker.layer': GLib.Variant('s', layer.replace("sha256:", ""))})
+                metav = GLib.Variant("a{sv}", {'docker.layer': GLib.Variant('s', layer)})
             csum = repo.write_commit(None, "", None, metav, root)[1]
-            repo.transaction_set_ref(None, "dockerimg-%s" % layer.replace("sha256:", ""), csum)
+            repo.transaction_set_ref(None, "dockerimg-%s" % layer, csum)
 
         # create a dockerimg-$image-$tag branch
         metadata = GLib.Variant("a{sv}", {'docker.manifest': GLib.Variant('s', manifest)})
@@ -871,6 +900,7 @@ class Atomic(object):
         repo.transaction_set_ref(None, imagebranch, csum)
 
         repo.commit_transaction(None)
+        shutil.rmtree(layers_dir)
         return True
 
     def _get_commit_metadata (self, repo, rev, key):
@@ -896,11 +926,10 @@ class Atomic(object):
         os.makedirs(rootfs)
         revs = []
 
-        reg = registry.Registry(regloc)
         rev = repo.resolve_rev(imagebranch, False)[1]
 
         manifest = self._get_commit_metadata (repo, rev, "docker.manifest")
-        layers = reg.layers(None, None, manifest=manifest)
+        layers = self._get_layers_from_manifest(manifest)
 
         rootfs_file = Gio.File.new_for_path(rootfs)
         for layer in layers:
@@ -923,7 +952,10 @@ class Atomic(object):
                 os.unlink(sym)
             os.symlink(destination, sym)
 
-        shutil.copy2(os.path.join(exports, "config.json"), os.path.join(destination, "config.json"))
+        for i in ["config.json", "runtime.json"]:
+            src = os.path.join(exports, i)
+            if os.path.exists(src):
+                shutil.copy2(src, os.path.join(destination, i))
 
         unitfile = os.path.join(exports, "service.template")
         unitfileout = "/usr/local/lib/systemd/system/%s.service" % (name)
