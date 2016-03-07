@@ -931,16 +931,13 @@ class Atomic(object):
         manifest = self._get_commit_metadata (repo, rev, "docker.manifest")
         layers = self._get_layers_from_manifest(manifest)
 
-        rootfs_file = Gio.File.new_for_path(rootfs)
+        options = OSTree.RepoCheckoutOptions()
+        options.overwrite_mode = OSTree.RepoCheckoutOverwriteMode.UNION_FILES
+        rootfs_fd = os.open(rootfs, os.O_DIRECTORY)
         for layer in layers:
             rev = repo.resolve_rev("dockerimg-%s" % layer.replace("sha256:", ""), False)[1]
-            root = repo.read_commit(rev)[1]
-            queryinfo = "standard::name,standard::type,standard::size,standard::is-symlink,standard::symlink-target," \
-                        "unix::device,unix::inode,unix::mode,unix::uid,unix::gid,unix::rdev"
-            file_info = Gio.File.query_info (root, queryinfo, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS)
-
-            repo.checkout_tree(OSTree.RepoCheckoutMode.NONE, OSTree.RepoCheckoutOverwriteMode.UNION_FILES,
-                               rootfs_file, root, file_info)
+            repo.checkout_tree_at(options, rootfs_fd, rootfs, rev)
+        os.close(rootfs_fd)
 
         exports = os.path.join(destination, "rootfs/exports")
 
