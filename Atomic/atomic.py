@@ -148,8 +148,8 @@ class Atomic(object):
                     self.d.remove_container(c["Id"], force=True)
 
     def update(self):
-        if self.args.spc:
-            return self._updatespc()
+        if self.args.oci:
+            return self._update_oci_container()
         self.ping()
         if self.force:
             self.force_delete_containers()
@@ -277,9 +277,9 @@ class Atomic(object):
             self.command = None
 
         try:
-            self.spc = args.spc
+            self.oci = args.oci
         except:
-            self.spc = False
+            self.oci = False
 
         try:
             self.name = args.name
@@ -293,8 +293,8 @@ class Atomic(object):
 
         if not self.name and self.image is not None:
             self.name = self.image.split("/")[-1].split(":")[0]
-            if self.spc:
-                self.name = self.name + "-spc"
+            if self.oci:
+                self.name = self.name + "-oci"
 
     def _getconfig(self, key, default=None):
         assert self.inspect is not None
@@ -585,8 +585,8 @@ class Atomic(object):
         self._rpmostree(argv)
 
     def uninstall(self):
-        if self.args.spc:
-            return self._uninstallspc()
+        if self.args.oci:
+            return self._uninstall_oci_container()
 
         self.inspect = self._inspect_container()
         if self.inspect and self.force:
@@ -776,8 +776,8 @@ class Atomic(object):
             self.inspect = self._inspect_image()
 
     def install(self):
-        if self.args.spc:
-            return self._installspc()
+        if self.args.oci:
+            return self._install_oci_container()
 
         self._check_if_image_present()
         args = self._get_args("INSTALL")
@@ -797,9 +797,9 @@ class Atomic(object):
         if not self.args.display:
             util.check_call(cmd, env=self.cmd_env())
 
-    def _uninstallspc(self):
-        spcdir = os.path.realpath("/var/lib/containers/atomic/%s" % self.name)
-        service_installed = os.path.exists(os.path.join(spcdir, "rootfs/exports/service.template"))
+    def _uninstall_oci_container(self):
+        ocidir = os.path.realpath("/var/lib/containers/atomic/%s" % self.name)
+        service_installed = os.path.exists(os.path.join(ocidir, "rootfs/exports/service.template"))
         self.args.display = False
         if service_installed:
             self.systemctl_command("stop", self.name)
@@ -844,7 +844,7 @@ class Atomic(object):
         layers.reverse()
         return layers
 
-    def _check_spc_docker_image(self, repo, upgrade):
+    def _check_oci_docker_image(self, repo, upgrade):
         regloc, image, tag = self._parse_imagename(self.image)
         imagebranch = "dockerimg-%s-%s" % (image.replace("sha256:", ""), tag)
         current_rev = repo.resolve_rev(imagebranch, True)
@@ -910,7 +910,7 @@ class Atomic(object):
             return None
         return metadata[key]
 
-    def _checkout_spc(self, repo, name, deployment, upgrade):
+    def _checkout_oci(self, repo, name, deployment, upgrade):
         regloc, image, tag = self._parse_imagename(self.image)
         imagebranch = "dockerimg-%s-%s" % (image.replace("sha256:", ""), tag)
 
@@ -967,25 +967,25 @@ class Atomic(object):
                 self.systemctl_command("start", name)
         return True
 
-    def _installspc(self):
+    def _install_oci_container(self):
         repo = OSTree.Repo.new(Gio.File.new_for_path("/ostree/repo"))
         repo.open(None)
 
-        self._check_spc_docker_image(repo, False)
+        self._check_oci_docker_image(repo, False)
 
         if os.path.exists("/var/lib/containers/atomic/%s.0" % self.name):
             self.writeOut("/var/lib/containers/atomic/%s.0 already present" % self.name)
             return
 
-        return self._checkout_spc(repo, self.name, 0, False)
+        return self._checkout_oci(repo, self.name, 0, False)
 
-    def _updatespc(self):
+    def _update_oci_container(self):
         self.args.display = False
 
         repo = OSTree.Repo.new(Gio.File.new_for_path("/ostree/repo"))
         repo.open(None)
 
-        if not self._check_spc_docker_image(repo, True):
+        if not self._check_oci_docker_image(repo, True):
             return False
 
         if not self.force:
@@ -998,15 +998,15 @@ class Atomic(object):
                 if image.read().strip("\n") != self.image:
                     continue
 
-            spc = os.path.join("/var/lib/containers/atomic", name)
+            path = os.path.join("/var/lib/containers/atomic", name)
             next_deployment = 0
-            if os.path.realpath(spc).endswith(".0"):
+            if os.path.realpath(path).endswith(".0"):
                 next_deployment = 1
 
             if os.path.exists("/var/lib/containers/atomic/%s.%d" % (name, next_deployment)):
                 shutil.rmtree("/var/lib/containers/atomic/%s.%d" % (name, next_deployment))
 
-            self._checkout_spc(repo, name, next_deployment, True)
+            self._checkout_oci(repo, name, next_deployment, True)
 
     def help(self):
         if os.path.exists("/usr/bin/rpm-ostree"):
