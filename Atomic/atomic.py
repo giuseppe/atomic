@@ -854,7 +854,7 @@ class Atomic(object):
 
     def _check_oci_docker_image(self, repo, upgrade):
         regloc, image, tag = self._parse_imagename(self.image)
-        imagebranch = "dockerimg-%s-%s" % (image.replace("sha256:", ""), tag)
+        imagebranch = "dockerimg/%s-%s" % (image.replace("sha256:", ""), tag)
         current_rev = repo.resolve_rev(imagebranch, True)
         if not upgrade and current_rev[1]:
             return False
@@ -864,7 +864,7 @@ class Atomic(object):
         missing_layers = []
         for i in layers:
             layer = i.replace("sha256:", "")
-            if not repo.resolve_rev("dockerimg-%s" % layer, True)[1]:
+            if not repo.resolve_rev("dockerimg/%s" % layer, True)[1]:
                 missing_layers.append(layer)
                 self.writeOut("Missing layer %s" % layer)
 
@@ -889,9 +889,9 @@ class Atomic(object):
                 root = repo.write_mtree(mtree)[1]
                 metav = GLib.Variant("a{sv}", {'docker.layer': GLib.Variant('s', layer)})
             csum = repo.write_commit(None, "", None, metav, root)[1]
-            repo.transaction_set_ref(None, "dockerimg-%s" % layer, csum)
+            repo.transaction_set_ref(None, "dockerimg/%s" % layer, csum)
 
-        # create a dockerimg-$image-$tag branch
+        # create a dockerimg/$image-$tag branch
         metadata = GLib.Variant("a{sv}", {'docker.manifest': GLib.Variant('s', manifest)})
         mtree = OSTree.MutableTree()
         file_info = Gio.FileInfo()
@@ -920,7 +920,7 @@ class Atomic(object):
 
     def _checkout_oci(self, repo, name, deployment, upgrade):
         regloc, image, tag = self._parse_imagename(self.image)
-        imagebranch = "dockerimg-%s-%s" % (image.replace("sha256:", ""), tag)
+        imagebranch = "dockerimg/%s-%s" % (image.replace("sha256:", ""), tag)
 
         destination = "/var/lib/containers/atomic/%s.%d" % (self.name, deployment)
         self.writeOut("Extracting to %s" % destination)
@@ -943,7 +943,7 @@ class Atomic(object):
         options.overwrite_mode = OSTree.RepoCheckoutOverwriteMode.UNION_FILES
         rootfs_fd = os.open(rootfs, os.O_DIRECTORY)
         for layer in layers:
-            rev = repo.resolve_rev("dockerimg-%s" % layer.replace("sha256:", ""), False)[1]
+            rev = repo.resolve_rev("dockerimg/%s" % layer.replace("sha256:", ""), False)[1]
             repo.checkout_tree_at(options, rootfs_fd, rootfs, rev)
         os.close(rootfs_fd)
 
