@@ -261,7 +261,11 @@ if __name__ == '__main__':
     installp.add_argument("image", help=_("container image"))
     installp.add_argument("--oci", dest="oci",
                           action='store_true', default=False,
-                          help=_('install a superprivileged container'))
+                          help=_('install an OCI container'))
+    installp.add_argument("--set", dest="setvalues",
+                          action='append',
+                          help=_("Specify a variable in the VARIABLE=VALUE "
+                                 "form for OCI containers"))
     installp.add_argument("args", nargs=argparse.REMAINDER,
                           help=_("Additional arguments appended to the image "
                                  "install method"))
@@ -510,8 +514,12 @@ if __name__ == '__main__':
                          help=_("remove all containers based on this image"))
     updatep.add_argument("--oci", dest="oci",
                           action='store_true', default=False,
-                          help=_("update all the superprivileges containers "
-                                 "that use the image"))
+                          help=_("update all the OCI containers "
+                                 "that are using the image"))
+    updatep.add_argument("--set", dest="setvalues",
+                          action='append',
+                          help=_("Specify a variable in the VARIABLE=VALUE "
+                                 "form for OCI containers"))
     updatep.add_argument("image", help=_("container image"))
 
     # atomic version
