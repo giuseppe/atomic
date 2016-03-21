@@ -15,8 +15,10 @@ import json
 import tarfile
 import stat
 import gi
+from string import Template
 gi.require_version('OSTree', '1.0')
 from gi.repository import Gio, GLib, OSTree
+from collections import defaultdict
 
 try:
     from subprocess import DEVNULL  # pylint: disable=no-name-in-module
@@ -1036,17 +1038,36 @@ class Atomic(object):
                 os.unlink(sym)
             os.symlink(destination, sym)
 
+        values = {"DESTDIR" : destination, "NAME" : name}
+        if self.args.setvalues is not None:
+            for i in self.args.setvalues:
+                split = i.find("=")
+                if split < 0:
+                    raise ValueError("Invalid value '%s'.  Expected form NAME=VALUE" % i)
+                key, val = i[:split], i[split+1:]
+                values[key] = val
+
+        def _write_template(data, values, outfile):
+            # A dictionary that returns the empty string by default
+            args = defaultdict(str)
+            args.update(values)
+
+            result = Template(data).substitute(args)
+            outfile.write(result)
+
         for i in ["config.json", "runtime.json"]:
-            src = os.path.join(exports, i)
+            src = os.path.join(exports, i + ".template")
+
             if os.path.exists(src):
-                shutil.copy2(src, os.path.join(destination, i))
+                with open(src, 'r') as infile, open(os.path.join(destination, i), "w") as outfile:
+                    _write_template(infile.read(), values, outfile)
 
         unitfile = os.path.join(exports, "service.template")
         unitfileout = "/usr/local/lib/systemd/system/%s.service" % (name)
         if os.path.exists(unitfile):
             with open(unitfile, 'r') as infile, open(unitfileout, "w") as outfile:
-                data = infile.read().replace("$DESTDIR", destination).replace("$NAME", name)
-                outfile.write(data)
+                _write_template(infile.read(), values, outfile)
+
             self.systemctl_command("enable", name)
             if upgrade:
                 self.systemctl_command("restart", name)
