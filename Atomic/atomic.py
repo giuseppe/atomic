@@ -637,7 +637,7 @@ class Atomic(object):
 
     def uninstall(self):
         if self.args.oci:
-            return self._uninstall_oci_container()
+            return self._uninstall_oci_container(self.args.image)
 
         self.inspect = self._inspect_container()
         if self.inspect and self.force:
@@ -849,22 +849,22 @@ class Atomic(object):
         if not self.args.display:
             util.check_call(cmd, env=self.cmd_env())
 
-    def _uninstall_oci_container(self):
-        ocidir = os.path.realpath("/var/lib/containers/atomic/%s" % self.name)
+    def _uninstall_oci_container(self, name):
+        ocidir = os.path.realpath("/var/lib/containers/atomic/%s" % name)
         service_installed = os.path.exists(os.path.join(ocidir, "rootfs/exports/service.template"))
         self.args.display = False
         if service_installed:
-            self.systemctl_command("stop", self.name)
-            self.systemctl_command("disable", self.name)
+            self.systemctl_command("stop", name)
+            self.systemctl_command("disable", name)
 
-        if os.path.exists(os.path.join("/etc/systemd/system", "%s.service" % self.name)):
-            os.unlink(os.path.join("/etc/systemd/system", "%s.service" % self.name))
-        if os.path.exists("/var/lib/containers/atomic/%s" % self.name):
-            os.unlink("/var/lib/containers/atomic/%s" % self.name)
-        if os.path.exists("/var/lib/containers/atomic/%s.0" % self.name):
-            shutil.rmtree("/var/lib/containers/atomic/%s.0" % self.name)
-        if os.path.exists("/var/lib/containers/atomic/%s.1" % self.name):
-            shutil.rmtree("/var/lib/containers/atomic/%s.1" % self.name)
+        if os.path.exists(os.path.join("/etc/systemd/system", "%s.service" % name)):
+            os.unlink(os.path.join("/etc/systemd/system", "%s.service" % name))
+        if os.path.exists("/var/lib/containers/atomic/%s" % name):
+            os.unlink("/var/lib/containers/atomic/%s" % name)
+        if os.path.exists("/var/lib/containers/atomic/%s.0" % name):
+            shutil.rmtree("/var/lib/containers/atomic/%s.0" % name)
+        if os.path.exists("/var/lib/containers/atomic/%s.1" % name):
+            shutil.rmtree("/var/lib/containers/atomic/%s.1" % name)
 
     def _prune_ostree_images(self):
         repo = OSTree.Repo.new(Gio.File.new_for_path("/ostree/repo"))
@@ -1099,16 +1099,11 @@ class Atomic(object):
 
         return self._checkout_oci(repo, self.name, self.image, 0, False)
 
-<<<<<<< HEAD
-    def _update_oci_container(self):
-        self.args.display = False
-=======
     def _update_one_oci_container(self, repo, name):
         path = os.path.join("/var/lib/containers/atomic", name)
         next_deployment = 0
         if os.path.realpath(path).endswith(".0"):
             next_deployment = 1
->>>>>>> b64797a... atomic: move update --oci to update-container
 
         if os.path.exists("/var/lib/containers/atomic/%s.%d" % (name, next_deployment)):
             shutil.rmtree("/var/lib/containers/atomic/%s.%d" % (name, next_deployment))
