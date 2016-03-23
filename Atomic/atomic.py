@@ -150,9 +150,10 @@ class Atomic(object):
                 if c["Image"] == image:
                     self.d.remove_container(c["Id"], force=True)
 
+    def update_container(self):
+        return self._update_oci_container()
+
     def update(self):
-        if self.args.oci:
-            return self._update_oci_container()
         self.ping()
         if self.force:
             self.force_delete_containers()
@@ -665,8 +666,8 @@ class Atomic(object):
             subprocess.check_call(["docker", "rmi", self.image])
 
     def cmd_env(self):
-        os.environ['NAME'] = self.name
-        os.environ['IMAGE'] = self.image
+        os.environ['NAME'] = self.name or ""
+        os.environ['IMAGE'] = self.image or ""
 
         if hasattr(self.args, 'opt1') and self.args.opt1:
             os.environ['OPT1'] = self.args.opt1
@@ -1002,8 +1003,8 @@ class Atomic(object):
             return None
         return metadata[key]
 
-    def _checkout_oci(self, repo, name, deployment, upgrade):
-        regloc, image, tag = self._parse_imagename(self.image)
+    def _checkout_oci(self, repo, name, image, deployment, upgrade):
+        regloc, image, tag = self._parse_imagename(image)
         imagebranch = "dockerimg/%s-%s" % (image.replace("sha256:", ""), tag)
 
         destination = "/var/lib/containers/atomic/%s.%d" % (self.name, deployment)
@@ -1039,8 +1040,8 @@ class Atomic(object):
         exports = os.path.join(destination, "rootfs/exports")
 
         if not self.args.display:
-            with open(os.path.join(destination, "image"), 'w') as image:
-                image.write(self.image + "\n")
+            with open(os.path.join(destination, "image"), 'w') as imgfile:
+                imgfile.write("%s\n" % image)
             sym = "/var/lib/containers/atomic/%s" % (name)
             if os.path.exists(sym):
                 os.unlink(sym)
@@ -1097,35 +1098,44 @@ class Atomic(object):
             self.writeOut("/var/lib/containers/atomic/%s.0 already present" % self.name)
             return
 
-        return self._checkout_oci(repo, self.name, 0, False)
+        return self._checkout_oci(repo, self.name, self.image, 0, False)
+
+<<<<<<< HEAD
+    def _update_oci_container(self):
+        self.args.display = False
+=======
+    def _update_one_oci_container(self, repo, name):
+        path = os.path.join("/var/lib/containers/atomic", name)
+        next_deployment = 0
+        if os.path.realpath(path).endswith(".0"):
+            next_deployment = 1
+>>>>>>> b64797a... atomic: move update --oci to update-container
+
+        if os.path.exists("/var/lib/containers/atomic/%s.%d" % (name, next_deployment)):
+            shutil.rmtree("/var/lib/containers/atomic/%s.%d" % (name, next_deployment))
+
+        image = None
+        with open(os.path.join("/var/lib/containers/atomic", name, "image"), "r") as i:
+            image = i.readline().rstrip("\n")
+
+        self._checkout_oci(repo, name, image, next_deployment, True)
 
     def _update_oci_container(self):
         self.args.display = False
 
         repo = self._get_ostree_repo()
 
-        if not self._check_oci_docker_image(repo, True):
-            return False
-
-        if not self.force:
+        if self.args.all:
+            for name in os.listdir("/var/lib/containers/atomic"):
+                if name.endswith(".0") or name.endswith(".1"):
+                    continue
+                with open(os.path.join("/var/lib/containers/atomic", name, "image"), "r") as image:
+                    if image.readline().rstrip("\n") != self.args.name:
+                        continue
+                self._update_one_oci_container(repo, name)
             return
 
-        for name in os.listdir("/var/lib/containers/atomic"):
-            if name.endswith(".0") or name.endswith(".1"):
-                continue
-            with open(os.path.join("/var/lib/containers/atomic", name, "image"), "r") as image:
-                if image.read().strip("\n") != self.image:
-                    continue
-
-            oci = os.path.join("/var/lib/containers/atomic", name)
-            next_deployment = 0
-            if os.path.realpath(oci).endswith(".0"):
-                next_deployment = 1
-
-            if os.path.exists("/var/lib/containers/atomic/%s.%d" % (name, next_deployment)):
-                shutil.rmtree("/var/lib/containers/atomic/%s.%d" % (name, next_deployment))
-
-            self._checkout_oci(repo, name, next_deployment, True)
+        return self._update_one_oci_container(repo, self.args.name)
 
     def help(self):
         if os.path.exists("/usr/bin/rpm-ostree"):
