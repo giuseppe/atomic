@@ -843,11 +843,15 @@ class Atomic(object):
 
     def _uninstall_oci_container(self, name):
         ocidir = os.path.realpath("/var/lib/containers/atomic/%s" % name)
-        service_installed = os.path.exists(os.path.join(ocidir, "rootfs/exports/service.template"))
         self.args.display = False
-        if service_installed:
+        try:
             self.systemctl_command("stop", name)
+        except:
+            pass
+        try:
             self.systemctl_command("disable", name)
+        except:
+            pass
 
         if os.path.exists(os.path.join("/etc/systemd/system", "%s.service" % name)):
             os.unlink(os.path.join("/etc/systemd/system", "%s.service" % name))
