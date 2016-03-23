@@ -273,7 +273,7 @@ class Atomic(object):
     def pull_image(self):
         repo = self._get_ostree_repo()
         if self.args.docker:
-            self._check_oci_docker_image(repo, True)
+            self._check_oci_docker_image(repo, "docker://%s" % self.image, True)
         elif self.args.tar:
             temp_dir = tempfile.mkdtemp()
             with tarfile.open(self.args.image, 'r') as t:
@@ -911,18 +911,18 @@ class Atomic(object):
         else:
             return reg, image, "latest"
 
-    def _skopeo_get_manifest(self):
-        r = util.subp(['skopeo', 'inspect', '--raw', "docker://%s" % self.image])
+    def _skopeo_get_manifest(self, image):
+        r = util.subp(['skopeo', 'inspect', '--raw', image])
         if r.return_code != 0:
-            raise IOError('Failed to fetch the manifest for: %s.' % self.image)
+            raise IOError('Failed to fetch the manifest for: %s.' % image)
         return r.stdout.decode(sys.getdefaultencoding())
 
-    def _skopeo_get_layers(self, layers):
+    def _skopeo_get_layers(self, image, layers):
         temp_dir = tempfile.mkdtemp()
-        args = ['skopeo', 'layers', "docker://%s" % self.image] + layers
+        args = ['skopeo', 'layers', image] + layers
         r = util.subp(args, cwd=temp_dir)
         if r.return_code != 0:
-            raise IOError('Failed to fetch the manifest for: %s.' % self.image)
+            raise IOError('Failed to fetch the manifest for: %s.' % image)
         return temp_dir
 
     def _get_layers_from_manifest(self, manifest):
@@ -963,14 +963,14 @@ class Atomic(object):
 
         repo.commit_transaction(None)
 
-    def _check_oci_docker_image(self, repo, upgrade):
-        regloc, image, tag = self._parse_imagename(self.image)
+    def _check_oci_docker_image(self, repo, img, upgrade):
+        regloc, image, tag = self._parse_imagename(img.replace("docker://", ""))
         imagebranch = "dockerimg/%s-%s" % (image.replace("sha256:", ""), tag)
         current_rev = repo.resolve_rev(imagebranch, True)
         if not upgrade and current_rev[1]:
             return False
 
-        manifest = self._skopeo_get_manifest()
+        manifest = self._skopeo_get_manifest(img)
         layers = self._get_layers_from_manifest(manifest)
         missing_layers = []
         for i in layers:
@@ -982,7 +982,7 @@ class Atomic(object):
         if len(missing_layers) == 0:
             return True
 
-        layers_dir = self._skopeo_get_layers(missing_layers)
+        layers_dir = self._skopeo_get_layers(img, missing_layers)
 
         layers = {}
         for root, _, files in os.walk(layers_dir):
@@ -1006,8 +1006,8 @@ class Atomic(object):
             return None
         return metadata[key]
 
-    def _checkout_oci(self, repo, name, image, deployment, upgrade):
-        regloc, image, tag = self._parse_imagename(image)
+    def _checkout_oci(self, repo, name, img, deployment, upgrade):
+        regloc, image, tag = self._parse_imagename(img.replace("docker://", ""))
         imagebranch = "dockerimg/%s-%s" % (image.replace("sha256:", ""), tag)
 
         destination = "/var/lib/containers/atomic/%s.%d" % (self.name, deployment)
@@ -1044,7 +1044,7 @@ class Atomic(object):
 
         if not self.args.display:
             with open(os.path.join(destination, "image"), 'w') as imgfile:
-                imgfile.write("%s\n" % image)
+                imgfile.write("%s\n" % img)
             sym = "/var/lib/containers/atomic/%s" % (name)
             if os.path.exists(sym):
                 os.unlink(sym)
@@ -1095,7 +1095,10 @@ class Atomic(object):
     def _install_oci_container(self):
         repo = self._get_ostree_repo()
 
-        self._check_oci_docker_image(repo, False)
+        if not self.image.startswith("docker://"):
+            raise ValueError("Image type for '%s' not known. Only docker:// is supported." % self.image)
+
+        self._check_oci_docker_image(repo, self.image, False)
 
         if os.path.exists("/var/lib/containers/atomic/%s.0" % self.name):
             self.writeOut("/var/lib/containers/atomic/%s.0 already present" % self.name)
