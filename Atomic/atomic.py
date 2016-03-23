@@ -41,6 +41,7 @@ from .util import NoDockerDaemon, DockerObjectNotFound
 from docker.errors import NotFound
 
 IMAGES = []
+ATOMIC_LIBEXEC = os.environ.get('ATOMIC_LIBEXEC', '/usr/libexec/atomic')
 
 def convert_size(size):
     if size > 0:
@@ -297,15 +298,26 @@ class Atomic(object):
                                 if not parent:
                                     top_layer = layer
                                 next_layer[parent] = layer
-    
+
+                        layers_map = {}
+                        enc = sys.getdefaultencoding()
+                        for k, v in layers.items():
+                            out = subprocess.check_output([ATOMIC_LIBEXEC + '/dockertar-sha256-helper',
+                                                           v], stderr=DEVNULL)
+                            layers_map[k] = out.decode(enc).replace("\n", "")
                         layers_ordered = []
+
                         it = top_layer
                         while it:
-                            layers_ordered.append(it)
+                            layers_ordered.append(layers_map[it])
                             it = next_layer.get(it)
-    
+
                         manifest = json.dumps({"Layers" : layers_ordered})
-                        self._import_layers_into_ostree(repo, imagebranch, manifest, layers)
+
+                        layers_to_import = {}
+                        for k, v in layers.items():
+                            layers_to_import[layers_map[k]] = v
+                        self._import_layers_into_ostree(repo, imagebranch, manifest, layers_to_import)
             finally:
                 shutil.rmtree(temp_dir)
         return
