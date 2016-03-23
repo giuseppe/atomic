@@ -486,7 +486,7 @@ if __name__ == '__main__':
     uninstallp.add_argument("--oci", dest="oci",
                             action='store_true', default=False,
                             help=_('uninstall an OCI container'))
-    uninstallp.add_argument("image", help=_("container image"))
+    uninstallp.add_argument("image", help=_("container image or name"))
     uninstallp.add_argument("args", nargs=argparse.REMAINDER,
                             help=_("Additional arguments appended to the "
                                    "image uninstall method"))
