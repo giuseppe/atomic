@@ -911,6 +911,11 @@ class Atomic(object):
     def _parse_imagename(self, imagename):
         sep = imagename.find("/")
         reg, image = imagename[:sep], imagename[sep + 1:]
+        if '.' not in reg:
+            # if the registry doesn't look like a domain, consider it as the
+            # image prefix
+            reg = ""
+            image = imagename
         sep = image.find(":")
         if sep > 0:
             return reg, image[:sep], image[sep + 1:]
