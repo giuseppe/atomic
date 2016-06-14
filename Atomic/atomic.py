@@ -516,6 +516,8 @@ class Atomic(object):
         command += self.image
         return command
 
+    #def ps -> Atomic/ps.py
+
     #def run -> Atomic/run.py
 
     def stop(self):
