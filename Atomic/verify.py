@@ -39,7 +39,10 @@ class Verify(Atomic):
                            'tag': self.image,
             })
 
-        if self.args.verbose:
+        not_matching = [x for x in images if x['local_nvr'] != x['latest_nvr']]
+        if len(not_matching) == 0:
+            pass
+        elif self.args.verbose:
             self._print_verify_verbose(images, self.image)
         else:
             self._print_verify(images, self.image)
