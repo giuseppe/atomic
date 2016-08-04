@@ -152,21 +152,32 @@ image_digest=$(ostree --repo=${ATOMIC_OSTREE_REPO} show --print-metadata-key=doc
 ${ATOMIC} images list > images.out
 grep "busybox.*$image_digest" images.out
 
-${ATOMIC} images list > images.out
-${ATOMIC} images list --all > images.all.out
+${ATOMIC} images list -f type=system > images.out
+${ATOMIC} images list -f type=system --all > images.all.out
 test $(wc -l < images.out) -lt $(wc -l < images.all.out)
 grep -q '<none>' images.all.out
-OUTPUT=$(! grep -q '<none>' images.out)
+OUTPUT=$(! grep -c '<none>' images.out)
 if test $OUTPUT \!= 0; then
     exit 1
 fi
 
-# check that there are not any "ociimage/" prefixed branch left after images prune
-${ATOMIC} images delete -f atomic-test-system
 ${ATOMIC} images delete -f busybox
 ${ATOMIC} images prune
+
+# Test there are still intermediate layers left after prune
+${ATOMIC} images list -f type=system --all > images.out
+test $(grep -c "<none>" images.out) -gt 0
+
+${ATOMIC} images delete -f atomic-test-system
+${ATOMIC} images prune
+
+# Test there are not intermediate layers left layers now
+${ATOMIC} images list -f type=system --all > images.out
+test $(! grep -c "<none>" images.out) = 0
+
+# Verify there are no branches left in the repository as well
 ostree --repo=${ATOMIC_OSTREE_REPO} refs > refs
-OUTPUT=$(! grep -c ociimage refs)
+OUTPUT=$(! grep -c "<none>" refs)
 if test $OUTPUT \!= 0; then
     exit 1
 fi
