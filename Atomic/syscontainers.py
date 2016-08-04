@@ -394,7 +394,12 @@ class SystemContainers(object):
                 created = info["created"] if "created" in info else ""
                 image = info["image"] if "image" in info else ""
 
-            container = {'Image' : image, 'ImageID' : revision, 'Id' : x, 'Created' : created, 'Names' : [x]}
+            with open(os.path.join(fullpath, "config.json"), "r") as config_file:
+                config = json.loads(config_file.read())
+                command = u' '.join(config["process"]["args"])
+
+            container = {'Image' : image, 'ImageID' : revision, 'Id' : x, 'Created' : created, 'Names' : [x],
+                         'Command' : command}
             ret.append(container)
         return ret
 
