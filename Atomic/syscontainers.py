@@ -389,13 +389,13 @@ class SystemContainers(object):
                 continue
 
             with open(os.path.join(fullpath, "info"), "r") as info_file:
-                info = json.loads(info_file.read())
+                info = json.load(info_file)
                 revision = info["revision"] if "revision" in info else ""
                 created = info["created"] if "created" in info else ""
                 image = info["image"] if "image" in info else ""
 
             with open(os.path.join(fullpath, "config.json"), "r") as config_file:
-                config = json.loads(config_file.read())
+                config = json.load(config_file)
                 command = u' '.join(config["process"]["args"])
 
             container = {'Image' : image, 'ImageID' : revision, 'Id' : x, 'Created' : created, 'Names' : [x],
