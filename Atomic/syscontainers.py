@@ -179,6 +179,20 @@ class SystemContainers(object):
             raise ValueError("Invalid configuration file.  Only readonly images are supported")
         if configuration['root']['path'] != 'rootfs' and not remote:
             raise ValueError("Invalid configuration file.  Path must be 'rootfs'")
+        # Ensure that the source path specified in bind/rbind exists and that the
+        # user owns it.
+        if "mounts" in configuration:
+            user_namespace = ("linux" in configuration and "namespaces" in configuration["linux"]
+                              and "user" in configuration["linux"]["namespaces"])
+            for mount in configuration["mounts"]:
+                if not "type" in mount:
+                    continue
+                if "source" in mount and "bind" in mount["type"]:
+                    source = mount["source"]
+                    if not os.path.exists(source):
+                        os.makedirs(source)
+                    if not user_namespace and "options" in mount and "ro" not in "mount":
+                        os.chown(source, os.getuid(), os.getgid())
 
     def _generate_default_oci_configuration(self, destination):
         args = [RUNC_PATH, 'spec']
