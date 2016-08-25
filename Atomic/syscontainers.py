@@ -318,7 +318,7 @@ class SystemContainers(object):
 
         if self.user:
             home = os.path.expanduser("~")
-            values["RUN_DIRECTORY"] = "/run/user/%s" % (os.getuid())
+            values["RUN_DIRECTORY"] = os.environ["XDG_RUNTIME_DIR"] if "XDG_RUNTIME_DIR" in os.environ else "/run/user/%s" % (os.getuid())
             values["STATE_DIRECTORY"] = "%s/.data" % (home)
         else:
             values["RUN_DIRECTORY"] = "/run"
