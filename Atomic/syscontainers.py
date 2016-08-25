@@ -156,9 +156,6 @@ class SystemContainers(object):
         if not repo:
             raise ValueError("Cannot find a configured OSTree repo")
 
-        if self.args.user and self.args.system:
-            raise ValueError("Choose only one between --user and --system")
-
         if self.args.system and self.user:
             raise ValueError("Only root can use --system")
 
