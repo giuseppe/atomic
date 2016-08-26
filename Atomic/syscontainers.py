@@ -186,6 +186,19 @@ class SystemContainers(object):
         if configuration['root']['path'] != 'rootfs' and not remote:
             raise ValueError("Invalid configuration file.  Path must be 'rootfs'")
 
+        missing_source_paths = []
+        # Ensure that the source path specified in bind/rbind exists and that the
+        # user owns it.
+        if "mounts" in configuration:
+            for mount in configuration["mounts"]:
+                if not "type" in mount:
+                    continue
+                if "source" in mount and "bind" in mount["type"]:
+                    source = mount["source"]
+                    if not os.path.exists(source):
+                        missing_source_paths.append(source)
+        return missing_source_paths
+
     def _generate_default_oci_configuration(self, destination):
         args = [RUNC_PATH, 'spec']
         util.subp(args, cwd=destination)
@@ -396,7 +409,7 @@ class SystemContainers(object):
             with open(destination_path, 'w') as config_file:
                 config_file.write(json.dumps(config, indent=4))
 
-        self._check_oci_configuration_file(destination_path, remote_path)
+        missing_bind_paths = self._check_oci_configuration_file(destination_path, remote_path)
 
         image_manifest = self._image_manifest(repo, rev)
         image_id = rev
@@ -424,7 +437,7 @@ class SystemContainers(object):
             with open(tmpfiles, 'r') as infile:
                 tmpfiles_template = infile.read()
         else:
-            tmpfiles_template = ""
+            tmpfiles_template = SystemContainers._generate_tmpfiles_data(missing_bind_paths, values["STATE_DIRECTORY"])
 
         # When upgrading, stop the service and remove previously installed
         # tmpfiles, before restarting the service.
@@ -899,6 +912,13 @@ class SystemContainers(object):
             if layers_dir:
                 shutil.rmtree(layers_dir)
         return True
+
+    @staticmethod
+    def _generate_tmpfiles_data(missing_bind_paths, state_directory):
+        def _generate_line(x):
+            state = "d" if os.path.commonprefix([x, state_directory]) == state_directory else "D"
+            return "%s    %s   0700 - - - -\n" % (state, x)
+        return "".join([_generate_line(x) for x in missing_bind_paths])
 
     @staticmethod
     def _get_commit_metadata(repo, rev, key):
