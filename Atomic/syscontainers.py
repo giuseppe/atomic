@@ -187,8 +187,7 @@ class SystemContainers(object):
             raise ValueError("Invalid configuration file.  Path must be 'rootfs'")
 
         missing_source_paths = []
-        # Ensure that the source path specified in bind/rbind exists and that the
-        # user owns it.
+        # Ensure that the source path specified in bind/rbind exists
         if "mounts" in configuration:
             for mount in configuration["mounts"]:
                 if not "type" in mount:
@@ -917,7 +916,7 @@ class SystemContainers(object):
     def _generate_tmpfiles_data(missing_bind_paths, state_directory):
         def _generate_line(x):
             state = "d" if os.path.commonprefix([x, state_directory]) == state_directory else "D"
-            return "%s    %s   0700 - - - -\n" % (state, x)
+            return "%s    %s   0700 %i %i - -\n" % (state, x, os.getuid(), os.getgid())
         return "".join([_generate_line(x) for x in missing_bind_paths])
 
     @staticmethod
