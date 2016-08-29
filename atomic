@@ -299,11 +299,14 @@ def create_parser(help_text):
     installp.add_argument("image", help=_("container image"))
     if Atomic.syscontainers.OSTREE_PRESENT:
         system_xor_user = installp.add_mutually_exclusive_group()
-        system_xor_user.add_argument("--user", dest="user", action="store_true",
-                                     help=_("Flag to specify if user is non-root privileged."))
-        system_xor_user.add_argument("--system", dest="system",
-                                     action='store_true', default=False,
-                                     help=_('install a system container'))
+        if Atomic.syscontainers.OSTREE_PRESENT:
+            if Atomic.util.bwrap_oci_available():
+                system_xor_user.add_argument("--user", dest="user", action="store_true",
+                                             help=_("Flag to specify if user is non-root privileged."))
+            if Atomic.util.runc_available():
+                system_xor_user.add_argument("--system", dest="system",
+                                             action='store_true', default=False,
+                                             help=_('install a system container'))
         installp.add_argument("--rootfs", dest="remote",
                               help=_("choose an existing exploded container/image to use "
                                      "its rootfs as a remote, read-only rootfs for the"
