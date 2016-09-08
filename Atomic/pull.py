@@ -31,8 +31,8 @@ class Pull(Atomic):
 
     def pull_image(self):
         handlers = {
-            "ostree" : lambda: self.syscontainers.pull_image(),
-            "docker" : lambda: self.pull_docker_image()
+            "ostree" : self.syscontainers.pull_image,
+            "docker" : self.pull_docker_image
         }
 
         handler = handlers.get(self.args.backend)
