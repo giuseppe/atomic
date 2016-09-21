@@ -216,12 +216,14 @@ test \! -e ${ATOMIC_OSTREE_CHECKOUT_PATH}/${NAME}.0
 test \! -e ${ATOMIC_OSTREE_CHECKOUT_PATH}/${NAME}.1
 
 
+${ATOMIC} pull --storage ostree docker.io/busybox
 ${ATOMIC} pull --storage ostree busybox
 ${ATOMIC} pull --storage ostree busybox > second.pull.out
 assert_not_matches "Pulling layer" second.pull.out
 
 ostree --repo=${ATOMIC_OSTREE_REPO} refs > refs
 assert_matches busybox refs
+${ATOMIC} --assumeyes images delete -f docker.io/busybox
 ${ATOMIC} --assumeyes images delete -f busybox
 ostree --repo=${ATOMIC_OSTREE_REPO} refs > refs
 OUTPUT=$(! grep -c busybox refs)
