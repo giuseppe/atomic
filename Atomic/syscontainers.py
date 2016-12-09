@@ -591,7 +591,7 @@ class SystemContainers(object):
         values = info["values"]
         revision = info["revision"] if "revision" in info else None
 
-        if revision and self.args.setvalues is None:
+        if revision and self.args.setvalues is None and not self.args.force:
             image_inspect = self.inspect_system_image(image)
             if image_inspect:
                 if image_inspect['ImageId'] == revision:
