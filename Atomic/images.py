@@ -139,6 +139,13 @@ class Images(Atomic):
             util.write_out(str(self.args))
 
         _images = self._get_images()
+        for i in _images:
+            repo, tag = i.split_repotags[0]
+            i.repo = repo
+            i.tag = tag
+
+        if self.args.filter:
+            _images = [x for x in _images if self._filter_include_image(x)]
 
         if self.args.json:
             util.output_json(self.return_json(_images))
@@ -165,9 +172,6 @@ class Images(Atomic):
                                           "VIRTUAL SIZE",
                                           "TYPE"))
         for image in _images:
-            if self.args.filter:
-                if not self._filter_include_image(image):
-                    continue
             if self.args.quiet:
                 util.write_out(image.id)
 
@@ -183,7 +187,6 @@ class Images(Atomic):
                         indicator = indicator + self.skull + space
                     else:
                         indicator = indicator + str(self.skull, "utf-8") + space
-                repo, tag = image.split_repotags[0]
                 _id = image.short_id if self.args.truncate else image.id
                 util.write_out(col_out.format(indicator, repo or "<none>", tag or "<none>", _id, image.timestamp,
                                               image.virtual_size, image.backend.backend))
