@@ -140,9 +140,7 @@ class Images(Atomic):
 
         _images = self._get_images()
         for i in _images:
-            repo, tag = i.split_repotags[0]
-            i.repo = repo
-            i.tag = tag
+            i.repo, i.tag = i.split_repotags[0]
 
         if self.args.filter:
             _images = [x for x in _images if self._filter_include_image(x)]
@@ -188,7 +186,7 @@ class Images(Atomic):
                     else:
                         indicator = indicator + str(self.skull, "utf-8") + space
                 _id = image.short_id if self.args.truncate else image.id
-                util.write_out(col_out.format(indicator, repo or "<none>", tag or "<none>", _id, image.timestamp,
+                util.write_out(col_out.format(indicator, image.repo or "<none>", image.tag or "<none>", _id, image.timestamp,
                                               image.virtual_size, image.backend.backend))
         util.write_out("")
         return
@@ -284,7 +282,7 @@ class Images(Atomic):
             if not img_obj.repotags:
                 continue
             img_dict = dict()
-            img_dict['repo'], img_dict['tag'] = img_obj.split_repotags[0]
+            img_dict['repo'], img_dict['tag'] = img_obj.repo, img_obj.tag
             for key in keys:
                 img_dict[key] = getattr(img_obj, key, None)
             img_dict['vuln_info'] = \
