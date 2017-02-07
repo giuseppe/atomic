@@ -51,7 +51,7 @@ def cli(subparser):
     if OSTREE_PRESENT:
         system_xor_user = installp.add_mutually_exclusive_group()
         system_xor_user.add_argument("--user", dest="user", action="store_true", default=False,
-                                     help=_("Flag to specify if user is non-root privileged."))
+                                     help=_("install the image as an user image."))
         system_xor_user.add_argument("--system", dest="system",
                                      action='store_true', default=False,
                                      help=_('install a system container'))
@@ -61,10 +61,10 @@ def cli(subparser):
                                      "container to be installed"))
         installp.add_argument("--set", dest="setvalues",
                               action='append',
-                              help=_("Specify a variable in the VARIABLE=VALUE "
+                              help=_("specify a variable in the VARIABLE=VALUE "
                                      "form for a system container"))
     installp.add_argument("args", nargs=argparse.REMAINDER,
-                          help=_("Additional arguments appended to the image "
+                          help=_("additional arguments appended to the image "
                                  "install method"))
 
 
