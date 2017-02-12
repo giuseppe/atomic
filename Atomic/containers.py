@@ -74,7 +74,7 @@ def cli(subparser):
     updatep.add_argument("container",
                          help=_("Specify one or more containers. Must be final arguments."))
     updatep.add_argument("--rebase", dest="rebase", default=None,
-                         help=_("Update to a different image (useful for upgrading to a different tag)"))
+                         help=_("Rebase to a different image (useful for upgrading to a different tag)"))
     if OSTREE_PRESENT:
         updatep.add_argument("--set", dest="setvalues",
                              action='append',
