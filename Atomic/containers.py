@@ -187,9 +187,9 @@ class Containers(Atomic):
                 return True
             for f in self.args.filters:
                 _filter, _ = f.split('=', 1)
-                if _filter not in [x for x in self.FILTER_KEYWORDS]:
+                if _filter not in self.FILTER_KEYWORDS.keys():
                     raise ValueError("The filter {} is not valid.  "
-                                     "Please choose from {}".format(_filter, [x for x in self.FILTER_KEYWORDS]))
+                                     "Please choose from {}".format(_filter, self.FILTER_KEYWORDS.keys()))
         _check_filters()
         containers = self.filter_container_objects(self.beu.get_containers())
         self._mark_vulnerable(containers)
