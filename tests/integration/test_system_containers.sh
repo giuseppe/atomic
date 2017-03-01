@@ -205,6 +205,7 @@ systemctl start ${NAME}-remote
 
 ${ATOMIC} --debug containers list --no-trunc > ps.out
 assert_matches "remote" ps.out
+test -h /var/lib/containers/atomic/${NAME}/rootfs
 test -e /etc/systemd/system/${NAME}-remote.service
 
 # The rootfs should not exist
