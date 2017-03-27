@@ -98,10 +98,7 @@ class RPMHostInstall(object):
         return spec
 
     @staticmethod
-    def generate_rpm_from_rootfs(rootfs, temp_dir, name, img_object, include_containers_file, display=False, installed_files=None, defaultversion='1'):
-        labels = {k.lower() : v for k, v in img_object.get('Labels', {}).items()}
-        image_id = img_object["ImageId"]
-
+    def generate_rpm_from_rootfs(rootfs, temp_dir, name, image_id, labels, include_containers_file, display=False, installed_files=None, defaultversion='1'):
         rpm_content = os.path.join(temp_dir, "rpmroot")
         spec_file = os.path.join(temp_dir, "container.spec")
 
@@ -164,7 +161,10 @@ class RPMHostInstall(object):
         return rpm_file
 
     @staticmethod
-    def generate_rpm(name, img_obj, exports, destination, values=None, installed_files=None, installed_files_template=None, rename_files=None, defaultversion='1'):
+    def generate_rpm(name, image_id, labels, exports, destination, values=None, installed_files=None, installed_files_template=None, rename_files=None, defaultversion='1'):
+
+        if values == None:
+            values = {}
 
         # If rpm.spec or rpm.spec.template exist, copy them to the checkout directory, processing the .template version.
         if os.path.exists(os.path.join(exports, "rpm.spec.template")):
@@ -182,7 +182,7 @@ class RPMHostInstall(object):
             os.makedirs(rootfs)
             if installed_files is None:
                 installed_files = RPMHostInstall.rm_add_files_to_host(None, exports, rpm_content, files_template=installed_files_template, values=values, rename_files=rename_files)
-            rpm_root = RPMHostInstall.generate_rpm_from_rootfs(destination, temp_dir, name, img_obj, include_containers_file=False, installed_files=installed_files, defaultversion=defaultversion)
+            rpm_root = RPMHostInstall.generate_rpm_from_rootfs(destination, temp_dir, name, image_id, labels, include_containers_file=False, installed_files=installed_files, defaultversion=defaultversion)
             rpm_file = RPMHostInstall.find_rpm(rpm_root)
             if rpm_file:
                 dest_path = os.path.join(destination, "container.rpm")

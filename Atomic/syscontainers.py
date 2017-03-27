@@ -214,7 +214,9 @@ class SystemContainers(object):
                     info = json.loads(info_file.read())
                     installed_files = info["installed-files"] if "installed-files" in info else None
 
-            ret = RPMHostInstall.generate_rpm_from_rootfs(rootfs, temp_dir, name, img, True, installed_files=installed_files, display=self.display)
+            image_id = img["ImageId"]
+            labels = {k.lower() : v for k, v in img.get('Labels', {}).items()}
+            ret = RPMHostInstall.generate_rpm_from_rootfs(rootfs, temp_dir, name, image_id, labels, True, installed_files=installed_files, display=self.display)
             if ret:
                 rpm_built = RPMHostInstall.find_rpm(ret)
                 generated_rpm = os.path.join(destination, os.path.basename(rpm_built))
@@ -625,7 +627,9 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
         rpm_file = rpm_preinstalled = None
         if system_package == 'yes':
             img_obj = self.inspect_system_image(img)
-            (rpm_preinstalled, rpm_file) = RPMHostInstall.generate_rpm(name, img_obj, exports, destination, values=values, installed_files_template=installed_files_template, rename_files=rename_files, defaultversion=deployment)
+            image_id = img_obj["ImageId"]
+            labels = {k.lower() : v for k, v in img_obj.get('Labels', {}).items()}
+            (rpm_preinstalled, rpm_file) = RPMHostInstall.generate_rpm(name, image_id, labels, exports, destination, values=values, installed_files_template=installed_files_template, rename_files=rename_files, defaultversion=deployment)
         if rpm_preinstalled:
             new_installed_files = []
         else:
