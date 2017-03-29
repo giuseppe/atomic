@@ -265,6 +265,7 @@ class SystemContainers(object):
         # Create a temporary directory to house the oneshot container
         base_dir = os.path.join(self.get_ostree_repo_location(), "tmp/atomic-container", str(os.getpid()))
         os.makedirs(base_dir)
+        tmpfiles_destination = None
         try:
             rootfs = os.path.sep.join([base_dir, 'rootfs'])
             # Extract the image to a temp directory.
@@ -277,11 +278,30 @@ class SystemContainers(object):
                 for k, v in setvalues.items():
                     values[k] = v
 
+            manifest_file = os.path.sep.join([rootfs, 'exports', "manifest.json"])
+            manifest = None
+            if os.path.exists(manifest_file):
+                with open(manifest_file, "r") as f:
+                    try:
+                        manifest = json.loads(f.read())
+                    except ValueError:
+                        raise ValueError("Invalid manifest.json file in image: {}.".format(image))
+
+            # if we got here, we know there is one image
+            repo = self._get_ostree_repo()
+            imgs = self._resolve_image(repo, image)
+            _, rev = imgs[0]
+            image_manifest = self._image_manifest(repo, rev)
+            image_id = rev
+            if image_manifest:
+                image_id = SystemContainers._get_image_id_from_manifest(manifest) or image_id
+
+            self._amend_values(values, manifest, name, image, image_id, base_dir)
+
             # Check for config.json in exports
             destination_config = os.path.sep.join([base_dir, 'config.json'])
             template_config_file = os.path.sep.join([rootfs, 'exports', 'config.json.template'])
             template_tmpfiles = os.path.sep.join([rootfs, 'exports', 'tmpfiles.template'])
-            tmpfiles_destination = None
             # If there is a config.json, use it
             if os.path.exists(os.path.sep.join([rootfs, 'exports', 'config.json'])):
                 shutil.copy(os.path.sep.join([rootfs, 'exports', 'config.json']),
