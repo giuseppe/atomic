@@ -225,8 +225,8 @@ class TestDBus():
         except:
             pass
 
-        result_tag = self.dbus_object.ImagesTag('docker.io/library/busybox:1.24', 'foobar', storage='docker')
-        result_delete = self.dbus_object.ImagesDelete(['foobar'], True, False, storage='docker')
+        result_tag = self.dbus_object.ImagesTag('docker.io/library/busybox:1.24', 'foobar', 'docker')
+        result_delete = self.dbus_object.ImagesDelete(['foobar'], True, False, 'docker')
         assert (result_tag == 0)
         assert (result_delete == 0)
 

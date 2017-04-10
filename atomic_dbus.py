@@ -266,7 +266,7 @@ class atomic_dbus(slip.dbus.service.Object):
     # The ImagesTag method will create a tag from an existing image.
     @slip.dbus.polkit.require_auth("org.atomic.readwrite")
     @dbus.service.method("org.atomic", in_signature='sss', out_signature='i')
-    def ImagesTag(self, src, target, storage='docker'):
+    def ImagesTag(self, src, target, storage):
         i = Tag()
         args = self.Args()
         args.src = src
