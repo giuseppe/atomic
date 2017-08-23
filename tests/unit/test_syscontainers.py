@@ -4,6 +4,7 @@ import os
 import shutil
 import tempfile
 import unittest
+import subprocess
 
 from Atomic import util
 from Atomic.syscontainers import SystemContainers
@@ -20,6 +21,19 @@ except ImportError:
     except ImportError:
         # Mock is already set to False
         pass
+
+if no_mock:
+    # If there is no mock, we need need to create a fake
+    # patch decorator
+    def fake_patch(a, new=''):
+        def foo(func):
+            def wrapper(*args, **kwargs):
+                ret = func(*args, **kwargs)
+                return ret
+            return wrapper
+        return foo
+
+    patch = fake_patch
 
 
 @unittest.skipIf(no_mock, "Mock not found")
@@ -74,7 +88,7 @@ class TestSystemContainers_container_exec(unittest.TestCase):
         """
         _sa.return_value = False  # The service is not active
         _um.return_value = False  # user mode is False
-        _cl.return_value = True  # Fake a checkout
+        _cl.return_value = "/var/lib/containers/atomic/test.0"  # Fake a checkout
 
         args = self.Args(backend='ostree')
         sc = SystemContainers()
@@ -100,30 +114,33 @@ class TestSystemContainers_container_exec(unittest.TestCase):
         sc.set_args(args)
         sc.container_exec('test', False, {})
 
-        self.assertEquals(_cc.call_args, expected_call)
+        self.assertEqual(_cc.call_args, expected_call)
 
     @patch('Atomic.syscontainers.SystemContainers._is_service_active')
-    @patch('Atomic.util.check_call')
+    @patch('subprocess.Popen')
     @patch('Atomic.util.is_user_mode')
     @patch('Atomic.syscontainers.SystemContainers._canonicalize_location')
     def test_container_exec_without_container_running(self, _ce, _um, _cc, _sa):
         """
         Expect the container to be started if it's not already running.
         """
-        expected_call = call([util.RUNC_PATH, 'run', 'test'], stdin=ANY, stderr=ANY, stdout=ANY)
+        expected_args = [util.RUNC_PATH, 'run', 'test']
 
         _sa.return_value = False  # The service is not active
         _um.return_value = False  # user mode is False
         tmpd = tempfile.mkdtemp()
-        _ce.return_value = tmpd  # Use a temporary directory for testing
-        args = self.Args(backend='ostree', user=False)
-        sc = SystemContainers()
-        sc.set_args(args)
+        try:
+            _ce.return_value = tmpd  # Use a temporary directory for testing
+            args = self.Args(backend='ostree', user=False)
+            sc = SystemContainers()
+            sc.set_args(args)
 
-        shutil.copy('./tests/test-images/system-container-files-hostfs/config.json.template', os.path.join(tmpd, 'config.json'))
+            shutil.copy('./tests/test-images/system-container-files-hostfs/config.json.template', os.path.join(tmpd, 'config.json'))
 
-        sc.container_exec('test', False, {})
-        self.assertEquals(_cc.call_args, expected_call)
+            sc.container_exec('test', False, {})
+            self.assertEqual(_cc.call_args[0][0], expected_args)
+        finally:
+            shutil.rmtree(tmpd)
 
 
 if __name__ == '__main__':
