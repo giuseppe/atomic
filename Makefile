@@ -48,8 +48,8 @@ docs/%.1: docs/%.1.md
 .PHONY: docs
 docs: $(MANPAGES_MD:%.md=%)
 
-dockertar-sha256-helper: dockertar-sha256-helper.go
-	$(GO) build dockertar-sha256-helper.go
+dockertar-sha256-helper: dockertar-sha256-helper.go $(shell find dockertar-sha256-helper-gopath -name '*.go')
+	GOPATH=$(shell pwd)/dockertar-sha256-helper-gopath $(GO) build dockertar-sha256-helper.go
 
 gotar: gotar.go
 	$(GO) build -o $@ $<
@@ -57,7 +57,7 @@ gotar: gotar.go
 .PHONY: clean
 clean:
 	$(PYTHON) setup.py clean
-	-rm -rf dist build *~ \#* *pyc .#* docs/*.1
+	-rm -rf dist build *~ \#* *pyc .#* docs/*.1 dockertar-sha256-helper
 
 .PHONY: install-only
 install-only:

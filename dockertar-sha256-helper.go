@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"compress/gzip"
+	"compress1.6/gzip"
 	"os"
 	"io"
 	"crypto/sha256"
