@@ -52,6 +52,8 @@ if test -z "${INSIDE_CONTAINER:-}"; then
     exit 0
 fi
 
+echo "fastestmirror=true" >> /etc/dnf/dnf.conf
+
 dnf install -y \
     git \
     make \
