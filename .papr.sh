@@ -67,9 +67,7 @@ dnf install -y \
     PyYAML \
     rpm-python \
     'dnf-command(builddep)' \
-&& dnf builddep -y \
-       atomic \
-&& dnf clean all
+&& dnf builddep -y atomic
 
 # pylint, build, and install in the container
 if [ -z ${NO_TEST} ]; then
