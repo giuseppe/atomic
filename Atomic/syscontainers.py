@@ -1822,7 +1822,7 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
         if not upgrade and current_rev[1]:
             return False
 
-        can_use_skopeo_copy = str(util.check_output([util.SKOPEO_PATH, "copy", "--help"])).find("ostree") >= 0
+        can_use_skopeo_copy = util.check_output([util.SKOPEO_PATH, "copy", "--help"]).decode().find("ostree") >= 0
 
         if can_use_skopeo_copy:
             return self._check_system_oci_image_skopeo_copy(repo, img)
