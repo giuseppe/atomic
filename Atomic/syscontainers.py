@@ -1577,7 +1577,6 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
                 continue
 
             fullpath = os.path.join(checkouts, i)
-
             if not os.path.isdir(fullpath):
                 continue
 
@@ -1586,7 +1585,7 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
             try:
                 shutil.rmtree(fullpath)
             except OSError:
-                pass
+                util.write_err("Could not remove directory {}".format(fullpath))
 
         for i in repo.list_refs()[1]:
             if i.startswith(OSTREE_OCIIMAGE_PREFIX):
