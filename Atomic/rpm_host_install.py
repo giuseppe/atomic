@@ -12,6 +12,9 @@ class RPMHostInstall(object):
     @staticmethod
     def copyfile(src, dest):
         if os.path.isdir(src):
+            # add the directory only if it is empty, so we don't create directories that
+            # weren't added by us.  Anyway a non empty directory would be created by
+            # its children.
             if len(os.listdir(src)) == 0:
                 os.mkdir(dest)
         elif os.path.islink(src):
