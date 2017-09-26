@@ -964,7 +964,17 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
         if self.user:
             return os.path.join(HOME, ".containers/repo")
 
-        return self.get_atomic_config_item(["ostree_repository"]) or "/ostree/repo"
+        if self.get_atomic_config_item(["ostree_repository"]) is not None:
+            return self.get_atomic_config_item(["ostree_repository"])
+
+        # If we are not running on Atomic and not using a system wide ostree
+        # storage create the repository under /var/lib/containers/atomic/.storage/.ostree
+        # and avoid problems with creating hard links when /ostree and the checkout
+        # path are on different file systems.
+        if not os.path.exists("/ostree/repo"):
+            return os.path.join(self.get_storage_path(skip_canonicalize=True), "ostree")
+
+        return "/ostree/repo"
 
     def _get_ostree_repo(self):
         if not OSTREE_PRESENT:
@@ -2120,7 +2130,7 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
         repo.transaction_set_ref(None, get_image_branch(dest), rev)
         repo.commit_transaction(None)
 
-    def get_storage_path(self):
+    def get_storage_path(self, skip_canonicalize=False):
         """
         Returns the path to storage.
 
@@ -2128,6 +2138,8 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
         :rtype: str
         """
         storage = os.path.sep.join([self._get_system_checkout_path(), ".storage"])
+        if skip_canonicalize:
+            return storage
         return self._canonicalize_location(storage)
 
     def _ensure_storage_for_image(self, repo, img):
@@ -2170,6 +2182,8 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
         if not os.path.exists(storage):
             return
         for i in os.listdir(storage):
+            if i == "ostree":
+                continue
             branch = "{}{}".format(OSTREE_OCIIMAGE_PREFIX, i)
             rev_layer = repo.resolve_rev(branch, True)[1]
             if not rev_layer:
