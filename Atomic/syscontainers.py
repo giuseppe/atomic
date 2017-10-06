@@ -1868,7 +1868,12 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
         if not upgrade and current_rev[1]:
             return False
 
-        can_use_skopeo_copy = util.check_output([util.SKOPEO_PATH, "copy", "--help"]).decode().find("ostree") >= 0
+        # there is a bug in skopeo that prevents copy of images with a port specified:
+        # https://github.com/containers/image/pull/342/commits/0044db84ada95f4626305b68ca00ed6ae29f6c24
+        # Switch back to:
+        # can_use_skopeo_copy = util.check_output([util.SKOPEO_PATH, "copy", "--help"]).decode().find("ostree") >= 0
+        # once the fix is propagated.
+        can_use_skopeo_copy = False
 
         if can_use_skopeo_copy:
             return self._check_system_oci_image_skopeo_copy(repo, img)
