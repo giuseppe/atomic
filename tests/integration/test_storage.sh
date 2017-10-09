@@ -35,7 +35,7 @@ setup () {
     # Perform setup routines here.
     copy /etc/sysconfig/docker-storage-setup /etc/sysconfig/docker-storage-setup.atomic-tests-backup
     TEST_DEV_1=/dev/vdb
-    wipefs -a ${TEST_DEV_1}
+    wipefs -fa ${TEST_DEV_1}
     TEST_DEV_1_pvs=${TEST_DEV_1}1
 
     ROOT_DEV=$( awk '$2 ~ /^\/$/ && $1 !~ /rootfs/ { print $1 }' /proc/mounts )
