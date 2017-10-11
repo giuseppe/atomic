@@ -668,7 +668,16 @@ class SystemContainers(object):
             sysroot = OSTree.Sysroot()
             sysroot.load()
             osname = sysroot.get_booted_deployment().get_osname()
-            destination = os.path.realpath(os.path.join("/ostree/deploy/", osname, os.path.relpath(destination, "/")))
+            deploy_destination = os.path.realpath(os.path.join("/ostree/deploy/", osname, os.path.relpath(destination, "/")))
+            test_file = "test-file-atomic-%i" % os.getpid()
+            test_path = os.path.join(os.path.dirname(deploy_destination), test_file)
+            try:
+                with open(test_path, 'w') as t:
+                    t.write("atomic")
+                if os.path.exists(os.path.join(os.path.dirname(destination), test_file)):
+                    destination = deploy_destination
+            finally:
+                os.unlink(test_file)
         except: #pylint: disable=bare-except
             pass
         return destination
