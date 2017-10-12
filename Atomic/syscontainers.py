@@ -991,7 +991,8 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
         checkouts = self._get_system_checkout_path()
         if not os.path.exists(checkouts):
             os.makedirs(checkouts)
-        if not SystemContainers._are_on_the_same_filesystem("/ostree/repo", checkouts):
+        rootdir = "/ostree/repo" if os.path.exists("/ostree/repo") else "/"
+        if not SystemContainers._are_on_the_same_filesystem(rootdir, checkouts):
             return os.path.join(self.get_storage_path(skip_canonicalize=True), "ostree")
 
         return "/ostree/repo"
