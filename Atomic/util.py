@@ -957,6 +957,9 @@ class Decompose(object):
                 return False
             return True
 
+        # Skopeo requires http: if the image is insecure. However,
+        # parsing fails when http: remains in the input_name
+        input_name = remove_skopeo_prefixes(input_name)
         reg, repo, image, tag = '', input_name, '', ''
         digest = None
         if '/' in repo:
@@ -1096,3 +1099,18 @@ def kpod(cmd, storage=None, debug=None):
     if debug:
         write_out(" ".join(cmd))
     return check_output(_kpod, env=os.environ)
+
+
+def remove_skopeo_prefixes(image):
+    """
+    Remove prefixes used by skopeo but not expected in other image uses.
+
+    :param image: The full image string
+    :type image: str
+    :returns: The image string without skopeo prefixes
+    :rtype: str
+    """
+    for remove in ('http:', 'https:'):
+        if image.startswith(remove):
+            image = image.replace(remove, '')
+    return image
