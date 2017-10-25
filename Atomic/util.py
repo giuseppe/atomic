@@ -1130,7 +1130,7 @@ def get_all_known_process_capabilities():
 
     mask = hex((1 << (last_cap + 1)) - 1)
 
-    out = subprocess.check_output([CAPSH_PATH, '--decode=%s' % mask], stderr=DEVNULL)
+    out = subprocess.check_output([CAPSH_PATH, '--decode={}'.format(mask)], stderr=DEVNULL)
 
     # The output looks like 0x0000003fffffffff=cap_chown,cap_dac_override,...
     # so take only the part after the '='
