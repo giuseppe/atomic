@@ -59,6 +59,10 @@ It tells Skopeo to not do TLS verification on the specified registry.
 
 `atomic pull --storage ostree http:REGISTRY/IMAGE:TAG`
 
+Not fully qualified images are supported when pulling to 'ostree',
+although it is suggested to use a fully qualified name to refer
+unambiguously to an image.
+
 If your /etc/containers/policy.json requires signature verification, the 
 pulled image is verified prior to being made available to the local docker
 daemon. When interacting with a docker registry, Atomic uses the policy 
