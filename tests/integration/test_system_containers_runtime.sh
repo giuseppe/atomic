@@ -15,6 +15,7 @@ IFS=$'\n\t'
 # 8. Repeated updates/rollbacks
 # 9. Update --rebase
 # 10. Updating/rolling back a container with a remote rootfs
+# 11. Verify --runtime is honored
 
 setup () {
     ${ATOMIC} pull --storage ostree docker:atomic-test-system:latest
