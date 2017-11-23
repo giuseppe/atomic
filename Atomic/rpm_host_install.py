@@ -43,12 +43,12 @@ class RPMHostInstall(object):
             return "0"
 
         h = hashlib.sha256()
-        with open(path, "r") as f:
+        with open(path, "rb") as f:
             while True:
                 chunk = f.read(blocksize)
                 if chunk == None or len(chunk) == 0:
                     break
-                h.update(chunk.encode())
+                h.update(chunk)
         return h.hexdigest()
 
     @staticmethod
