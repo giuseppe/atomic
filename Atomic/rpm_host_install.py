@@ -59,7 +59,7 @@ class RPMHostInstall(object):
                 new_checksum = RPMHostInstall.file_checksum(path)
                 if new_checksum != checksum:
                     # Do not delete the file if it was modified.
-                    util.write_out("Do not delete %s as it was manually modified." % path, lf="\n")
+                    util.write_out("Will not delete %s as it was manually modified." % path, lf="\n")
                     continue
                 try:
                     os.remove(path)
