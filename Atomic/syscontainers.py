@@ -1060,6 +1060,8 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
         # Use /ostree/repo if it already exists and it is on the same filesystem
         # as the checkout directory.
         if os.path.exists("/ostree/repo/config"):
+            if not os.path.exists(storage_path):
+                os.makedirs(storage_path)
             if SystemContainers._is_repo_on_the_same_filesystem("/ostree/repo", storage_path):
                 return "/ostree/repo"
         return os.path.join(storage_path, "ostree")
