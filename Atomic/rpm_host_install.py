@@ -12,7 +12,7 @@ RPM_NAME_PREFIX = "atomic-container"
 class RPMHostInstall(object):
 
     @staticmethod
-    def _copyfile(selinux_hnd, src, dest):
+    def _copyfile(selinux_hnd, src, dest, try_hardlink=False):
 
         if selinux_hnd is not None:
             mode = 0o755
@@ -36,10 +36,24 @@ class RPMHostInstall(object):
             os.symlink(linkto, dest)
             return True
         else:
-            # we cannot use shutil.copy2() or shutil.copystat() here as it would override the
-            # security.selinux xattr.
-            shutil.copy(src, dest)
-            shutil.copymode(src, dest)
+            file_copied = False
+            # newer version of Skopeo/SELinux use the same SELinux context for f
+            if try_hardlink and selinux_hnd is not None:
+                src_label = selinux.getfilecon(src)
+                # Files have the same label, we can use a hard link.
+                if src_label[1] == ctx[1]:
+                    try:
+                        os.link(src, dest)
+                        file_copied = True
+                    except:  # pylint: disable=bare-except
+                        pass
+
+            # fallback to file copy.
+            if not file_copied:
+                # we cannot use shutil.copy2() or shutil.copystat() here as it would override the
+                # security.selinux xattr.
+                shutil.copy(src, dest)
+                shutil.copymode(src, dest)
             return True
         return False
 
