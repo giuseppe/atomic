@@ -37,7 +37,8 @@ class RPMHostInstall(object):
             return True
         else:
             file_copied = False
-            # newer version of Skopeo/SELinux use the same SELinux context for f
+            # newer version of Skopeo/SELinux use the same SELinux context for system containers
+            # files as the host files at the same location i.e. /exports/hostfs/foo -> /foo.
             if try_hardlink and selinux_hnd is not None:
                 src_label = selinux.getfilecon(src)
                 # Files have the same label, we can use a hard link.
@@ -147,7 +148,7 @@ class RPMHostInstall(object):
                             selinux.setfscreatecon_raw(ctx[1])
 
                         util.write_template(src_file, data, values or {}, dest_path)
-                        shutil.copystat(src_file, dest_path)
+                        shutil.copymode(src_file, dest_path)
                         created = True
                     else:
                         try_hardlink = use_links and RPMHostInstall._should_use_hard_link(dest_path)
