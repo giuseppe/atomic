@@ -37,7 +37,7 @@ setup () {
     TEST_DEV_1=/dev/vdb
     findmnt -o SOURCE
     if findmnt -o SOURCE | grep "^$TEST_DEV_1"; then
-        exit 77
+	findmnt -o SOURCE | grep "^$TEST_DEV_1" | uniq | xargs umount
     fi
 
     wipefs -a "$TEST_DEV_1"
