@@ -64,11 +64,10 @@ PIDFile=$PIDFILE
 [Install]
 WantedBy=multi-user.target
 """
-TEMPLATE_FORCED_VARIABLES = ["DESTDIR", "NAME", "EXEC_START", "EXEC_STOP",
-                             "EXEC_STARTPRE", "EXEC_STOPPOST", "HOST_UID",
-                             "HOST_GID", "IMAGE_ID", "IMAGE_NAME"]
+TEMPLATE_FORCED_VARIABLES = ["DESTDIR", "NAME", "HOST_UID", "HOST_GID", "IMAGE_ID", "IMAGE_NAME"]
 TEMPLATE_OVERRIDABLE_VARIABLES = ["RUN_DIRECTORY", "STATE_DIRECTORY", "CONF_DIRECTORY", "UUID", "PIDFILE",
-                                  "ALL_PROCESS_CAPABILITIES"]
+                                  "ALL_PROCESS_CAPABILITIES", "EXEC_START", "EXEC_STOP", "EXEC_STARTPRE",
+                                  "EXEC_STOPPOST"]
 
 
 class SystemContainers(object):
@@ -721,7 +720,16 @@ class SystemContainers(object):
                     tmpfiles_destination = tmp
 
             # Get the start command for the system container
-            (start_command, _, _, _) = self._generate_systemd_startstop_directives(name, unit_file_support_pidfile=False)
+            start_command = values.get('EXEC_START')
+            if start_command is None:
+                (start_command, _, _, _) = self._generate_systemd_startstop_directives(name, unit_file_support_pidfile=False)
+            else:
+                template = Template(start_command)
+                try:
+                    start_command = template.substitute(values)
+                except KeyError as e:
+                    raise ValueError("The template for EXEC_START still contains an unreplaced value for: '{}'".format(str(e)))
+
             # Move to the base directory to start the system container
             os.chdir(base_dir)
             # ... and run it. We use call() because the actual
@@ -1023,7 +1031,7 @@ class SystemContainers(object):
         all_caps = util.get_all_known_process_capabilities()
         return ",\n".join(['"%s"' % i for i in all_caps]) + "\n"
 
-    def _amend_values(self, values, manifest, name, image, image_id, destination, prefix=None, unit_file_support_pidfile=False):
+    def _amend_values(self, values, manifest, name, image, image_id, destination, prefix=None):
         # When installing a new system container, set values in this order:
         #
         # 1) What comes from manifest.json, if present, as default value.
@@ -1068,12 +1076,11 @@ class SystemContainers(object):
             values["UUID"] = str(uuid.uuid4())
         values["DESTDIR"] = os.path.join("/", os.path.relpath(destination, prefix)) if prefix else destination
         values["NAME"] = name
-        directives = self._generate_systemd_startstop_directives(name, pidfile=values["PIDFILE"], unit_file_support_pidfile=unit_file_support_pidfile)
-        values["EXEC_START"], values["EXEC_STOP"], values["EXEC_STARTPRE"], values["EXEC_STOPPOST"] = directives
         values["HOST_UID"] = os.getuid()
         values["HOST_GID"] = os.getgid()
         values["IMAGE_NAME"] = image
         values["IMAGE_ID"] = image_id
+
         return values
 
     @staticmethod
@@ -1237,9 +1244,23 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
         else:
             systemd_template = SYSTEMD_UNIT_FILE_DEFAULT_TEMPLATE
 
-        options["values"] = self._amend_values(options["values"], manifest, options["name"], options["img"], image_id, options["destination"], options["prefix"], unit_file_support_pidfile=SystemContainers._template_support_pidfile(systemd_template))
+        options["values"] = self._amend_values(options["values"], manifest, options["name"], options["img"], image_id, options["destination"], options["prefix"])
 
-        self._write_config_to_dest(options["destination"], exports, options["values"])
+        final_values = options["values"].copy()
+        unit_file_support_pidfile = SystemContainers._template_support_pidfile(systemd_template)
+        directives = self._generate_systemd_startstop_directives(options["name"], pidfile=final_values["PIDFILE"], unit_file_support_pidfile=unit_file_support_pidfile)
+        final_values["EXEC_START"] = final_values.get("EXEC_START", directives[0])
+        final_values["EXEC_STOP"] = final_values.get("EXEC_STOP", directives[1])
+        final_values["EXEC_STARTPRE"] = final_values.get("EXEC_STARTPRE", directives[2])
+        final_values["EXEC_STOPPOST"] = final_values.get("EXEC_STOPPOST", directives[3])
+        for i in ['EXEC_START', 'EXEC_STOP', 'EXEC_STARTPRE', 'EXEC_STOPPOST']:
+            template = Template(final_values[i])
+            try:
+                final_values[i] = template.substitute(final_values)
+            except KeyError as e:
+                raise ValueError("The template for '{}' still contains an unreplaced value for: '{}'".format(i, str(e)))
+
+        self._write_config_to_dest(options["destination"], exports, final_values)
 
         if remote_path:
             SystemContainers._rewrite_rootfs(options["destination"], rootfs)
@@ -1261,10 +1282,10 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
             tmpfiles_template = SystemContainers._generate_tmpfiles_data(missing_bind_paths)
 
         if has_container_service:
-            util.write_template(unitfile, systemd_template, options["values"], options["unitfileout"])
+            util.write_template(unitfile, systemd_template, final_values, options["unitfileout"])
             shutil.copyfile(options["unitfileout"], os.path.join(options["prefix"] or "/", options["destination"], "%s.service" % options["name"]))
         if (tmpfiles_template):
-            util.write_template(unitfile, tmpfiles_template, options["values"], options["tmpfilesout"])
+            util.write_template(unitfile, tmpfiles_template, final_values, options["tmpfilesout"])
             shutil.copyfile(options["tmpfilesout"], os.path.join(options["prefix"] or "/", options["destination"], "tmpfiles-%s.conf" % options["name"]))
 
         if not options["prefix"]:
@@ -1278,10 +1299,10 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
         if not has_container_service:
             if not remote_path:
                 shutil.rmtree(os.path.join(options["destination"], "rootfs"))
-            return options["values"]
+            return final_values
 
         if options["prefix"]:
-            return options["values"]
+            return final_values
 
         try:
             self._finalize_checkout(rpm_install_content, tmpfiles_template, options, was_service_active)
@@ -1293,7 +1314,7 @@ Warning: You may want to modify `%s` before starting the service""" % os.path.jo
             os.unlink(sym)
             raise
 
-        return options["values"]
+        return final_values
 
     def _finalize_checkout(self, rpm_install_content, tmpfiles_template, options, was_service_active):
         """

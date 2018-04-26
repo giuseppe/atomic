@@ -159,14 +159,6 @@ cannot be overriden by the user through **--set**:
 **$DESTDIR** Destination on the file system for the checked out
 container.
 
-**$EXEC_STARTPRE** Command to use for the systemd directive ExecStartPre=.
-
-**$EXEC_START** Command to use for the systemd directive ExecStart=.
-
-**$EXEC_STOP** Command to use for the systemd directive ExecStop=.
-
-**$EXEC_STOPPOST** Command to use for the systemd directive ExecStopPost=.
-
 **$HOST_UID** UID of the user on the system.
 
 **$HOST_GID** GID of the user on the system.
@@ -204,6 +196,14 @@ the host, $XDG_RUNTIME_DIR for user containers).
 **$RUNTIME** The runtime used to execute the containers.
 
 **$ATOMIC** Path to the atomic executable that is installing the container.
+
+**$EXEC_STARTPRE** Command to use for the systemd directive ExecStartPre=.
+
+**$EXEC_START** Command to use for the systemd directive ExecStart=.
+
+**$EXEC_STOP** Command to use for the systemd directive ExecStop=.
+
+**$EXEC_STOPPOST** Command to use for the systemd directive ExecStopPost=.
 
 **--system-package=auto|build|no|yes**
 Control how the container will be installed to the system.

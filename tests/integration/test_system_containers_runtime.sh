@@ -50,6 +50,8 @@ trap teardown EXIT
 
 OUTPUT=$(/bin/true)
 
+export SECRET=`dd if=/dev/urandom bs=4096 count=1 2> /dev/null | sha256sum`
+
 setup
 
 # 1. Install a system container and start/stop the container with systemctl
@@ -209,8 +211,10 @@ readlink ${ATOMIC_OSTREE_CHECKOUT_PATH}/${NAME} > ${WORK_DIR}/link.out
 assert_matches ${NAME}.0 ${WORK_DIR}/link.out
 
 # Updating to a new image fails with missing variables
-OUTPUT=$(! ${ATOMIC} containers update ${NAME} --rebase atomic-test-system-update 2>&1)
-grep "unreplaced value for: ''VAR_WITH_NO_DEFAULT''" <<< $OUTPUT
+set +e
+${ATOMIC} containers update ${NAME} --rebase atomic-test-system-update > ${WORK_DIR}/update2.out 2>&1
+set -e
+assert_matches "unreplaced value for: ''VAR_WITH_NO_DEFAULT''" ${WORK_DIR}/update2.out
 readlink ${ATOMIC_OSTREE_CHECKOUT_PATH}/${NAME} > ${WORK_DIR}/link.out
 assert_matches ${NAME}.0 ${WORK_DIR}/link.out
 
